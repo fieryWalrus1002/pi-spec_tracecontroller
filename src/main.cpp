@@ -162,7 +162,7 @@ void return_params()
     Serial.print(meas_led_vis);
     Serial.print(",");
     Serial.print("meas_led_ir=");
-    Serial.print(counter);
+    Serial.print(meas_led_ir);
     Serial.print(",");
     Serial.print("num_points=");
     Serial.print(num_points);
