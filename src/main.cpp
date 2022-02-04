@@ -1,18 +1,17 @@
 #include <Arduino.h>
-#define ADC_PIN 31
-#define SAT_PULSE_PIN 26
-#define STO_FLASH_PIN 35
-#define POWER_LED_PIN 39
+#include <main.h>
+
 
 int incoming_byte = 0;
 int counter = 0;
 int sat_pulse_begin = 500;
 int sat_pulse_end = 600;
 int pulse_length = 10;
+int post_trig_pulse_length = 0;
 int pulse_interval = 25;
 int pulse_mode = 1;
-int meas_led_vis = 1;
-int meas_led_ir = 5;
+int meas_led_vis = 0;
+int meas_led_ir = 4;
 long prev_time = 0;
 int num_points = 1000;
 int trace_phase = 0;
@@ -20,12 +19,22 @@ int act_int_phase[] = {10, 0, 10}; // holds the actinic intenisty values for pha
 int act_int_pins[] = {16, 17, 18, 19, 20, 21, 22, 23};
 int meas_led_array[] = {0, 1, 2, 3, 4, 5, 6, 7};
 
+int trigger_delay = 15;
+int trigger_width = 5;
+// int mod_pulse_length = 0;
+byte vis_mask = 0x00;
+byte ir_mask = 0x00;
+byte meas_led_mask = 0x00;
+
 typedef enum
 {
     NONE,
     GOT_A,
+    GOT_B,
     GOT_C,
     GOT_D,
+    GOT_E,
+    GOT_F,
     GOT_G,
     GOT_H,
     GOT_I,
@@ -49,6 +58,13 @@ int current_value;
 ////////////////////////////////////////////// functions //////////////////////////////////////////////////////////
 void execute_trace()
 {
+    // pulse length calculation for after trigger, ie second half of pulse
+    int post_trig_pulse_length = pulse_length - trigger_delay - trigger_width;
+   
+    if (post_trig_pulse_length < 0){
+        post_trig_pulse_length = 0;
+    }
+
     Serial.println("trace_triggered;");
     counter = 0;
 }
@@ -90,11 +106,15 @@ void set_pulse_interval(const int value)
 void set_vis_led(const int value)
 {
     meas_led_vis = meas_led_array[value];
+    vis_mask = 1<<value;
+    Serial.println(vis_mask);
 }
 
 void set_ir_led(const int value)
 {
     meas_led_ir = meas_led_array[value];
+    ir_mask = 1<<value;
+    Serial.println(vis_mask);
 }
 
 void set_pulse_length(const int value)
@@ -117,6 +137,16 @@ void set_sat_pulse_begin(const int value)
 void set_phase_act_value(const int value, int phase_num)
 {
     act_int_phase[phase_num] = value;
+}
+
+void meas_pulse_on(byte bit_mask)
+{
+    PORTE |= bit_mask;
+}
+
+void meas_pulse_off()
+{
+    PORTE &= 0x00;
 }
 
 void handle_saturation_pulse(int pulse_mode, int trace_phase)
@@ -145,29 +175,23 @@ void return_params()
 {
     Serial.print("counter=");
     Serial.print(counter);
-    Serial.print(",");
-    Serial.print("sat_pulse_begin=");
+    Serial.print(", sat_pulse_begin=");
     Serial.print(sat_pulse_begin);
-    Serial.print(",");
-    Serial.print("sat_pulse_end=");
+    Serial.print(", sat_pulse_end=");
     Serial.print(sat_pulse_end);
-    Serial.print(",");
-    Serial.print("pulse_length=");
+    Serial.print(", pulse_length=");
     Serial.print(pulse_length);
-    Serial.print(",");
-    Serial.print("pulse_interval=");
+    Serial.print(", pulse_interval=");
     Serial.print(pulse_interval);
-    Serial.print(",");
-    Serial.print("meas_led_vis=");
+    Serial.print(", meas_led_vis=");
     Serial.print(meas_led_vis);
-    Serial.print(",");
-    Serial.print("meas_led_ir=");
+    Serial.print(", meas_led_ir=");
     Serial.print(meas_led_ir);
-    Serial.print(",");
-    Serial.print("num_points=");
+    Serial.print(", num_points=");
     Serial.print(num_points);
-    Serial.print(",");
-    Serial.print("act_int_phase=[");
+    Serial.print(", pulse_mode=");
+    Serial.print(pulse_mode);
+    Serial.print(", act_int_phase=[");
     Serial.print(act_int_phase[0]);
     Serial.print(",");
     Serial.print(act_int_phase[1]);
@@ -185,13 +209,21 @@ void handle_action()
     case GOT_A:
         set_act_intensity(current_value, act_int_pins);
         break;
+    case GOT_B:
+        break;
     case GOT_C:
-        // checkLED(current_value);
+        calibrate_trigger_delay(current_value);
         break;
     case GOT_D:
         // return diagnostic info
         // sendStatus();
         return_params();
+        break;
+    case GOT_E:
+        trigger_delay = current_value;
+        break;
+    case GOT_F:
+        trigger_width = current_value;
         break;
     case GOT_G:
         break;
@@ -263,11 +295,20 @@ void process_inc_byte(const byte c)
         case 'a':
             state = GOT_A;
             break;
+        case 'b':
+            state = GOT_B;
+            break;
         case 'c':
             state = GOT_C;
             break;
         case 'd':
             state = GOT_D;
+            break;
+        case 'e':
+            state = GOT_E;
+            break;
+        case 'f':
+            state = GOT_F;
             break;
         case 'g':
             state = GOT_G;
@@ -324,6 +365,9 @@ void process_inc_byte(const byte c)
 
 void measurement_pulse()
 {
+    // LED mask
+    meas_led_mask = 0x00 | vis_mask | ir_mask;
+
     // once it triggers, it executes the following sequence of actions:
     // if this is a singleturnover flash trigger point, then we trigger the single turnover flash
     if (counter == sat_pulse_begin && pulse_mode == 2)
@@ -334,16 +378,27 @@ void measurement_pulse()
         digitalWrite(STO_FLASH_PIN, LOW);
         delayMicroseconds(8);
     }
-
-    digitalWrite(meas_led_vis, HIGH); // set green LED to HIGH
-    digitalWrite(meas_led_ir, HIGH);  // set IR LED to HIGH
+    
+    // turn on measureing pulse leds
+    meas_pulse_on(meas_led_mask);
+    delayMicroseconds(trigger_delay); // wait to trigger ADC
     digitalWrite(ADC_PIN, HIGH);      // turn on trigger for ADC conversion
-    delayMicroseconds(pulse_length);  // wait the rest of the pulse width
+    delayMicroseconds(trigger_width);
     digitalWrite(ADC_PIN, LOW);       // adc trigger off
-    digitalWrite(meas_led_vis, LOW);  // set green LED to LOW
-    digitalWrite(meas_led_ir, LOW);   // set IR LED to LOW
+    delayMicroseconds(post_trig_pulse_length); // keep the pulse going for the full length
+    meas_pulse_off();
 }
 
+void calibrate_trigger_delay(int calib_pts)
+{
+    delay(100);
+    for (int i = 0; i < calib_pts; i++)
+    {
+        trigger_delay = i * 2;
+        measurement_pulse();
+        delayMicroseconds(pulse_interval);   
+    }
+}
 
 void setup()
 {
@@ -402,12 +457,18 @@ void loop()
             measurement_pulse();
             counter++;
             if (counter > num_points)
-            {
+            {Serial.print(",");
                 Serial.println("trace_finished;");
             }
         }
     }
     if (counter >= num_points){
         digitalWrite(SAT_PULSE_PIN, LOW);
+        digitalWrite(STO_FLASH_PIN, LOW);
+        set_act_intensity(0, act_int_pins);
+        for (int i=0; i<8; i++)
+        {
+            digitalWrite(meas_led_array[i], LOW);
+        }
     }
 }
