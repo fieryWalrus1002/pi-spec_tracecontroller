@@ -6,16 +6,16 @@ int incoming_byte = 0;
 int counter = 0;
 int sat_pulse_begin = 500;
 int sat_pulse_end = 600;
-int pulse_length = 10;
+int pulse_length = 50;
 int post_trig_pulse_length = 0;
-int pulse_interval = 25;
+int pulse_interval = 1000;
 int pulse_mode = 1;
 int meas_led_vis = 0;
 int meas_led_ir = 4;
 long prev_time = 0;
 int num_points = 1000;
 int trace_phase = 0;
-int act_int_phase[] = {10, 0, 10}; // holds the actinic intenisty values for phases 0-2
+int act_int_phase[] = {128, 0, 128}; // holds the actinic intenisty values for phases 0-2
 int act_int_pins[] = {16, 17, 18, 19, 20, 21, 22, 23};
 int meas_led_array[] = {0, 1, 2, 3, 4, 5, 6, 7};
 
@@ -25,6 +25,9 @@ int trigger_width = 5;
 byte vis_mask = 0x00;
 byte ir_mask = 0x00;
 byte meas_led_mask = 0x00;
+
+//#power switch
+
 
 typedef enum
 {
@@ -409,23 +412,21 @@ void setup()
     pinMode(STO_FLASH_PIN, OUTPUT);
     pinMode(POWER_LED_PIN, OUTPUT);
     pinMode(POWER_LED_PIN, HIGH);
+    pinMode(TRACE_TRIG_PIN, INPUT_PULLUP);
 
     for (int i = 0; i < 8; i++)
     {
         pinMode(i, OUTPUT);
     }
 
-    for (int i = 16; i < 24; i++)
-    {
-        pinMode(i, OUTPUT);
-    }
     prev_time = micros();
     counter = num_points + 1;
 
-    for (int i = 0; i < 40; i++)
-    {
-        digitalWrite(i, LOW);
-    }
+    // for (int i = 0; i < 40; i++)
+    // {
+    //     digitalWrite(i, LOW);
+    // }
+    digitalWrite(ADC_PIN, LOW);
 }
 
 
