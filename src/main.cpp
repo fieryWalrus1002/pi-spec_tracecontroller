@@ -16,33 +16,33 @@ Adafruit_SSD1306 display(128, 32, &Wire, OLED_RESET);
 MAX1132 adc;
 
 // define pins
-const int CS_PIN = 10;
+
 const int ADC_PIN = 15;
-const int SAT_PULSE_PIN = 0;
 const int STO_FLASH_PIN = 0;
+const int POWER_PIN = 22;
+const int MCP_CS_PIN[] = {21, 0, 0};
+const int ACT_GATE[] = {20, 0, 0};
+const int SAT_PULSE_GATE = 19;
 const int meas_led_array[] = {0, 2, 3, 4, 5, 6, 7, 8, 9}; // 0 will not flash anything
 
 struct Point{
     long time_us;
-    uint16_t value;
+    uint16_t val1;
+    uint16_t val2;
+    uint16_t val3;
 };
 
 Point buffer[10000];
 
-
-
 // MCP41XX is connected via SPI
 // SCK: 13
 // MOSI: 11
-// CS: 10
-
+// CS: 21
 //
 
 // SSD1306 is connected via I2C bus
 // SCL: 19
 // SDA: 18
-
-
 
 int incoming_byte = 0;
 int counter = 0;
@@ -116,7 +116,9 @@ void execute_trace()
 
     // let pispec know
     // Serial.println("trace_triggered;");
-    set_act_intensity(act_int_phase[trace_phase]);
+    set_act_intensity(act_int_phase[0], MCP_CS_PIN[0]);
+    set_act_intensity(act_int_phase[1], MCP_CS_PIN[1]);
+    set_act_intensity(act_int_phase[2], MCP_CS_PIN[2]);
 }
 
 void oledPrint(char* str){
@@ -127,7 +129,7 @@ void oledPrint(char* str){
     display.display();
 }
 
-void set_act_intensity(int x)
+void set_act_intensity(int x, int mcp_cs_pin)
 {
     // x is desired light intensity
     // mcpVal is the 16-bit value we send to MCP40101 digital potentiometer
@@ -156,18 +158,15 @@ void set_act_intensity(int x)
     display.display();
     }
 
-    
-
-
-    write_act_intensity(mcpVal);
+    write_act_intensity(value, mcp_cs_pin);
 }
 
-void write_act_intensity(int value)
+void write_act_intensity(int value, int mcp_cs_pin)
 {
-    digitalWrite(CS_PIN, LOW);
+    digitalWrite(mcp_cs_pin, LOW);
     SPI.transfer(B00010001);
-    SPI.transfer(value);  
-    digitalWrite(CS_PIN, HIGH);
+    SPI.transfer(value);
+    digitalWrite(mcp_cs_pin, HIGH);
 }
 
 void calibrate_zero_offset(int value)
@@ -239,23 +238,24 @@ void meas_pulse_off()
     }
 }
 
-void handle_saturation_pulse(int pulse_mode, int trace_phase)
+void handle_saturation_pulse(int pulse_mode, int trace_phase, int gate_state)
 {
     // 0 for dirk/normal actinic value, 1 for sat pulse, 2 for st flash
     switch (pulse_mode)
     {
     case 0:
-        set_act_intensity(act_int_phase[trace_phase]);
+        // set_act_intensity(act_int_phase[trace_phase]);
         break;
     case 1:
         // set desired light intensity to a saturating value, say 6000 uE
-        set_act_intensity(ACT_SAT_VAL);
+        // set_act_intensity(ACT_SAT_VAL);
+        digitalWrite(SAT_PULSE_GATE, gate_state)
         break;
     case 2:
         // single turnover flash, as quick as we can pulse it
-        write_act_intensity(255);
+        digitalWrite(SAT_PULSE_GATE, 1)
         delayMicroseconds(1);
-        write_act_intensity(0);
+        digitalWrite(SAT_PULSE_GATE, 0)
         break;
     default:
         break;
@@ -297,13 +297,21 @@ void pushData(){
     }
 }
 
+void toggleLedPower(int val){
+    if (val > 0){
+        digitalWrite(POWER_GATE, HIGH);
+    } else {
+        digitalWrite(POWER_GATE, LOW);
+    }
+}
+
 void handle_action()
 {
     // NONE, GOT_M, GOT_N, GOT_I, GOT_G, GOT_H, GOT_V, GOT_R, GOT_P
     switch (state)
     {
     case GOT_A:
-        set_act_intensity(current_value);
+        set_act_intensity(current_value, MCP_CS_PIN[trace_phase]);
         break;
     case GOT_B:
         break;
@@ -337,6 +345,9 @@ void handle_action()
         break;
     case GOT_P:
         set_pulse_length(current_value);
+        break;
+    case GOT_Q:
+        toggleLedPower(current_value);
         break;
     case GOT_R:
         set_ir_led(current_value);
@@ -425,6 +436,9 @@ void process_inc_byte(const byte c)
         case 'p':
             state = GOT_P;
             break;
+        case 'q':
+            state = GOT_Q;
+            break;
         case 'r':
             state = GOT_R;
             break;
@@ -472,15 +486,23 @@ void measurement_pulse()
         zeroTime = micros();
     }
     long time_us = micros() - zeroTime;
+
     // turn on measureing pulse leds
     meas_pulse_on();
     delayMicroseconds(trigger_delay); // wait to trigger ADC
-    uint16_t reading = adc.read();
-    delayMicroseconds(post_trig_pulse_length); // keep the pulse going for the full length
+
+    uint16_t reading1 = adc.read();
+    uint16_t reading2 = adc.read();
+    uint16_t reading3 = adc.read();
+
+    while ((micros() - zeroTime)  < pulse_length){
+        delayMicroseconds(1); // keep the pulse going for the full length
+    }
+
     meas_pulse_off();
 
-    // handle data storage in buffer meas_led_array
-    Point val = {time_us, reading};
+    // handle data storage in buffer
+    Point val = {time_us, reading1, reading2, reading3};
     buffer[counter] = val;
 }
 
@@ -489,21 +511,23 @@ void init_digital_pins(){
     // initialze led output pins
     size_t n = sizeof(meas_led_array) / sizeof(meas_led_array[0]);
     
-    for (unsigned int i = 1; i < n; i++)
+    for (unsigned int i = 1; i <= n; i++)
     {
         pinMode(meas_led_array[i], OUTPUT);
         digitalWrite(meas_led_array[i], LOW);
     }
-
     // init other pins
     pinMode(ADC_CS_PIN, OUTPUT);
     pinMode(ADC_RST_PIN, OUTPUT);
-    pinMode(ADC_SSTRB_PIN, INPUT);
-
-    // pinMode(ADC_PIN, OUTPUT);
-    pinMode(SAT_PULSE_PIN, OUTPUT);
-    pinMode(STO_FLASH_PIN, OUTPUT);
-    digitalWrite(ADC_PIN, LOW);
+    pinMode(ADC_SSTRB_PIN, INPUT); 
+    pinMode(POWER_PIN, OUTPUT);
+    pinMode(SAT_PULSE_GATE, OUTPUT);
+    pinMode(MCP_CS_PIN[0], OUTPUT);
+    pinMode(MCP_CS_PIN[1], OUTPUT);
+    pinMode(MCP_CS_PIN[2], OUTPUT);
+    pinMode(ACT_GATE[0], OUTPUT);
+    pinMode(ACT_GATE[1], OUTPUT);
+    pinMode(ACT_GATE[2], OUTPUT);
 }
 
 void cleanupTrace(){
@@ -511,7 +535,11 @@ void cleanupTrace(){
     if (debugOut == true){
         Serial.print("trace finished;");
     }
-    set_act_intensity(ACT_OFF_VAL);
+
+    //turn off all actinic gates
+    for (int i = 0; i < 3, i++){
+        digitalWrite(ACT_GATE[0], LOW)
+    }
 
     size_t n = sizeof(meas_led_array) / sizeof(meas_led_array[0]);
     for (unsigned int i=1; i < n; i++)
@@ -564,8 +592,7 @@ void setup()
     // digitalWrite(CS_PIN, HIGH);
     // pinMode(CS_PIN, OUTPUT);
 
-
-    // set_act_intensity(ACT_OFF_VAL);
+    set_act_intensity(ACT_OFF_VAL, MCP_CS_PIN[trace_phase]);
     Serial.println("set act intensity");
     // set counter above threshold so it doesn't execute trace
     counter = num_points + 1;
@@ -593,6 +620,10 @@ void send_data_point(int wrt_cnt)
         Serial.print(",");
         Serial.print(buffer[wrt_cnt].time_us);
         Serial.print(", ");
+        Serial.println(buffer[wrt_cnt].value);
+        Serial.print(",");
+        Serial.println(buffer[wrt_cnt].value);
+        Serial.print(",");
         Serial.println(buffer[wrt_cnt].value);
         delayMicroseconds(4);
     }
@@ -642,21 +673,20 @@ void loop()
                 // check saturation pulse time points
                 if (counter == sat_pulse_begin)
                 {
+                    // transitiopn act value
+                    digitalWrite(ACT_GATE[trace_phase], LOW)
                     trace_phase += 1;
-                    if (debugOut == true){
-                        Serial.print("trace_phase: ");
-                        Serial.print(trace_phase);
-                    }
-                    // set_act_intensity(act_int_phase[trace_phase]);
-                    handle_saturation_pulse(pulse_mode, trace_phase);
+                    digitalWrite(ACT_GATE[trace_phase], HIGH)
+                    
+                    handle_saturation_pulse(pulse_mode, trace_phase, 1);
+
                 } else if (counter == sat_pulse_end)
                 {
+                    handle_saturation_pulse(pulse_mode, trace_phase, 0);
+
+                    digitalWrite(ACT_GATE[trace_phase], LOW)
                     trace_phase += 1;
-                    if (debugOut == true){
-                        Serial.print("trace_phase: ");
-                        Serial.print(trace_phase);
-                    }
-                    set_act_intensity(act_int_phase[trace_phase]);
+                    digitalWrite(ACT_GATE[trace_phase], HIGH)
                 }
 
             // perform a measurement pulse
