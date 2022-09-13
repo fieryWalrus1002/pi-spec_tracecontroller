@@ -16,21 +16,12 @@ Adafruit_SSD1306 display(128, 32, &Wire, OLED_RESET);
 MAX1132 adc;
 
 // define pins
-
-const int ADC_PIN = 15;
 const int STO_FLASH_PIN = 0;
-const int POWER_PIN = 22;
-const int MCP_CS_PIN[] = {21, 0, 0};
-const int ACT_GATE[] = {20, 0, 0};
-const int SAT_PULSE_GATE = 19;
+const int POWER_GATE = 33;
+const int MCP_CS_PIN[] = {23, 22, 21};
+const int ACT_GATE[] = {17, 16, 15};
+const int SAT_PULSE_GATE = 38;
 const int meas_led_array[] = {0, 2, 3, 4, 5, 6, 7, 8, 9}; // 0 will not flash anything
-
-struct Point{
-    long time_us;
-    uint16_t val1;
-    uint16_t val2;
-    uint16_t val3;
-};
 
 Point buffer[10000];
 
@@ -48,15 +39,15 @@ int incoming_byte = 0;
 int counter = 0;
 int sat_pulse_begin = 500;
 int sat_pulse_end = 600;
-int pulse_length = 50; // in uS
+unsigned int pulse_length = 50; // in uS
 int post_trig_pulse_length = 0;
 unsigned int pulse_interval = 1000; // in uS, so 1000 is 1ms between measurement pulses
 int pulse_mode = 1; // 0 just actinic setting, 1 sat pulse, 2 single turnover
 int meas_led_vis = 0;
 int meas_led_ir = 0;
-
 int num_points = 1000;
 int trigger_delay = 15;
+int numAq = 5; // number of acquisitions for the adc to perform and data to retrieve
 
 // actinic stuff
 /* Actinic intensity is given in a 0-255 range. We take this and calculate the proper
@@ -87,6 +78,7 @@ typedef enum
     GOT_M,
     GOT_N,
     GOT_P,
+    GOT_Q,
     GOT_R,
     GOT_S,
     GOT_T,
@@ -158,7 +150,7 @@ void set_act_intensity(int x, int mcp_cs_pin)
     display.display();
     }
 
-    write_act_intensity(value, mcp_cs_pin);
+    write_act_intensity(mcpVal, mcp_cs_pin);
 }
 
 void write_act_intensity(int value, int mcp_cs_pin)
@@ -249,13 +241,13 @@ void handle_saturation_pulse(int pulse_mode, int trace_phase, int gate_state)
     case 1:
         // set desired light intensity to a saturating value, say 6000 uE
         // set_act_intensity(ACT_SAT_VAL);
-        digitalWrite(SAT_PULSE_GATE, gate_state)
+        digitalWrite(SAT_PULSE_GATE, gate_state);
         break;
     case 2:
         // single turnover flash, as quick as we can pulse it
-        digitalWrite(SAT_PULSE_GATE, 1)
+        digitalWrite(SAT_PULSE_GATE, 1);
         delayMicroseconds(1);
-        digitalWrite(SAT_PULSE_GATE, 0)
+        digitalWrite(SAT_PULSE_GATE, 0);
         break;
     default:
         break;
@@ -293,7 +285,7 @@ void return_params()
 
 void pushData(){
     for (int i = 0; i <= num_points; i++){
-        send_data_point(i);
+        send_data_point(numAq, i);
     }
 }
 
@@ -485,15 +477,12 @@ void measurement_pulse()
     if (counter == 0){
         zeroTime = micros();
     }
-    long time_us = micros() - zeroTime;
 
     // turn on measureing pulse leds
     meas_pulse_on();
     delayMicroseconds(trigger_delay); // wait to trigger ADC
 
-    uint16_t reading1 = adc.read();
-    uint16_t reading2 = adc.read();
-    uint16_t reading3 = adc.read();
+    Point pnt = adc.read(1, zeroTime);
 
     while ((micros() - zeroTime)  < pulse_length){
         delayMicroseconds(1); // keep the pulse going for the full length
@@ -502,8 +491,7 @@ void measurement_pulse()
     meas_pulse_off();
 
     // handle data storage in buffer
-    Point val = {time_us, reading1, reading2, reading3};
-    buffer[counter] = val;
+    buffer[counter] = pnt;
 }
 
 void init_digital_pins(){
@@ -511,7 +499,7 @@ void init_digital_pins(){
     // initialze led output pins
     size_t n = sizeof(meas_led_array) / sizeof(meas_led_array[0]);
     
-    for (unsigned int i = 1; i <= n; i++)
+    for (unsigned int i = 1; i < n; i++)
     {
         pinMode(meas_led_array[i], OUTPUT);
         digitalWrite(meas_led_array[i], LOW);
@@ -520,7 +508,7 @@ void init_digital_pins(){
     pinMode(ADC_CS_PIN, OUTPUT);
     pinMode(ADC_RST_PIN, OUTPUT);
     pinMode(ADC_SSTRB_PIN, INPUT); 
-    pinMode(POWER_PIN, OUTPUT);
+    pinMode(POWER_GATE, OUTPUT);
     pinMode(SAT_PULSE_GATE, OUTPUT);
     pinMode(MCP_CS_PIN[0], OUTPUT);
     pinMode(MCP_CS_PIN[1], OUTPUT);
@@ -537,8 +525,8 @@ void cleanupTrace(){
     }
 
     //turn off all actinic gates
-    for (int i = 0; i < 3, i++){
-        digitalWrite(ACT_GATE[0], LOW)
+    for (int i = 0; i < 3; i++){
+        digitalWrite(ACT_GATE[0], LOW);
     }
 
     size_t n = sizeof(meas_led_array) / sizeof(meas_led_array[0]);
@@ -588,6 +576,7 @@ void setup()
     digitalWrite(ADC_CS_PIN, HIGH);
     digitalWrite(ADC_RST_PIN, HIGH);
     adc.init();
+    
     Serial.println("adc init");
     // digitalWrite(CS_PIN, HIGH);
     // pinMode(CS_PIN, OUTPUT);
@@ -608,7 +597,7 @@ void setup()
 }
 
 
-void send_data_point(int wrt_cnt)
+void send_data_point(int numAq, int wrt_cnt)
 {
     if (wrt_cnt >= num_points)
     {
@@ -619,30 +608,31 @@ void send_data_point(int wrt_cnt)
         Serial.print(wrt_cnt);
         Serial.print(",");
         Serial.print(buffer[wrt_cnt].time_us);
-        Serial.print(", ");
-        Serial.println(buffer[wrt_cnt].value);
-        Serial.print(",");
-        Serial.println(buffer[wrt_cnt].value);
-        Serial.print(",");
-        Serial.println(buffer[wrt_cnt].value);
+        
+        for (int i = 0; i < numAq; i++){
+            Serial.print(", ");    
+            Serial.print(buffer[wrt_cnt].data[i]);
+        }
+        Serial.println(""),
         delayMicroseconds(4);
     }
 }
 
-
-void loop()
-{   
-    // static int idx = 0;
-    // if (idx < 10000){
-    //     idx++;
-    // } else {
-    //     idx = 0;
-    // }
-
-    // uint16_t reading = adc.read();
-    // // reading = adc.read();
-        
+void readAndDisplay(int numAq){
     // // visual feedback
+    // adc.setNumAq(numAq);
+    Point pnt = adc.read(numAq, micros());
+    display.clearDisplay();
+    display.setCursor(0, 0);
+    display.print(pnt.time_us);
+    
+    for (int i = 0; i < numAq; i++){
+        display.setCursor(20, i * 10);
+        display.print(pnt.data[i]);
+    }
+    display.display();
+
+   
     // display.clearDisplay();
     // display.setCursor(0, 0);
     // display.print("val: ");
@@ -658,6 +648,26 @@ void loop()
     // display.print(voltage);
 
     // display.display();
+}
+
+
+
+void loop()
+{   
+    if (measureState == 0){
+        readAndDisplay(4);
+    }
+    // static int idx = 0;
+    // if (idx < 10000){
+    //     idx++;
+    // } else {
+    //     idx = 0;
+    // }
+
+    // uint16_t reading = adc.read();
+    // // reading = adc.read();
+        
+
 
     // debug stuff
     
@@ -674,9 +684,9 @@ void loop()
                 if (counter == sat_pulse_begin)
                 {
                     // transitiopn act value
-                    digitalWrite(ACT_GATE[trace_phase], LOW)
+                    digitalWrite(ACT_GATE[trace_phase], LOW);
                     trace_phase += 1;
-                    digitalWrite(ACT_GATE[trace_phase], HIGH)
+                    digitalWrite(ACT_GATE[trace_phase], HIGH);
                     
                     handle_saturation_pulse(pulse_mode, trace_phase, 1);
 
@@ -684,9 +694,9 @@ void loop()
                 {
                     handle_saturation_pulse(pulse_mode, trace_phase, 0);
 
-                    digitalWrite(ACT_GATE[trace_phase], LOW)
+                    digitalWrite(ACT_GATE[trace_phase], LOW);
                     trace_phase += 1;
-                    digitalWrite(ACT_GATE[trace_phase], HIGH)
+                    digitalWrite(ACT_GATE[trace_phase], HIGH);
                 }
 
             // perform a measurement pulse

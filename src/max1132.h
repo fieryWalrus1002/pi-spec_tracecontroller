@@ -13,15 +13,28 @@ const int ADC_RST_PIN = 29;
 const int ADC_SSTRB_PIN = 30;
 // 11011000
 const byte CALBYTE = 0xC8;// calibration control byte
-
 const byte READBYTE = 0xD8; // acquire unipolar in long acquistion mode (~150 ksps with ext clock)
+const int MAX_AQ = 10;
+
+struct Point
+{
+    long time_us;
+    uint16_t data[10];
+};
 
 class MAX1132
 {  
 
-public:
+public:    
     void init(); // activates spi1 and calibrates the adc
-	uint16_t read();
+    Point read(int numAq, long zeroTime);
+    int getNumAq(){return numAq;};
+    
+
+private:
+    int numAq;
+    void setNumAq(int newNum){if (newNum <= MAX_AQ){
+        numAq = newNum;} else {numAq = MAX_AQ;}};
 };
 
 
