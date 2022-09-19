@@ -111,26 +111,19 @@ void MAX1132::init(){
 //     return reading; // return the full 16 bit reading from the ADC channel
 // }
 
-Point MAX1132::read(int num_aq, long zeroTime)
+uint16_t MAX1132::read()
 {
-    Point pnt;
-    pnt.time_us = micros() - zeroTime;
-    
+    uint16_t reading;
     // take the chip select low to select the device:
     digitalWrite(ADC_CS_PIN, LOW);
-
-    for (int i = 0; i < num_aq; i++){
-        uint16_t reading;
-       
-        // send the device the acquistion command byte for unipolar conversion long
-        SPI.transfer(READBYTE);
-        reading = SPI.transfer(0x00);     		// receive low byte
-        reading |= SPI.transfer(0x00) << 8;    // receive high byte
-        pnt.data[i] = reading;
-    }
-
-    // take the chip select high to de-select:
+    
+    // send the device the acquistion command byte for unipolar conversion long
+    SPI.transfer(READBYTE);
+    // delayMicroseconds(ADC_DELAY); //);
+    reading = SPI.transfer(0x00);     		// receive low byte
+    // delayMicroseconds(ADC_DELAY); //);
+    reading |= SPI.transfer(0x00) << 8;    // receive high byte
+    
     digitalWrite(ADC_CS_PIN, HIGH);
-
-    return pnt;
+    return reading;
 }

@@ -7,13 +7,18 @@
 #include "max1132.h"
 #define OLED_RESET -1
 
+
 elapsedMicros tLast;
 long zeroTime = 0;
 bool debugOut = false; // set if we do any serial output for debugging or not
 bool measureState = false; // state for measurements
+bool aqFlag = false; // flag indication of adc ready for new reading
+int traceNumber = 0; // the current trace number, index in traceData for current trace data to be placed
+
 // I2C display
 Adafruit_SSD1306 display(128, 32, &Wire, OLED_RESET);
 MAX1132 adc;
+
 
 // define pins
 const int STO_FLASH_PIN = 0;
@@ -23,7 +28,7 @@ const int ACT_GATE[] = {17, 16, 15};
 const int SAT_PULSE_GATE = 38;
 const int meas_led_array[] = {0, 2, 3, 4, 5, 6, 7, 8, 9}; // 0 will not flash anything
 
-Point buffer[10000];
+
 
 // MCP41XX is connected via SPI
 // SCK: 13
@@ -97,20 +102,15 @@ int current_value;
 
 void execute_trace()
 {
-    // pulse length calculation for after trigger, ie second half of pulse
-    post_trig_pulse_length = pulse_length - trigger_delay;
-
     // set trace variables to initial values
     measureState = true;
     trace_phase = 0;
     counter = 0;
     zeroTime = micros();
-
-    // let pispec know
-    // Serial.println("trace_triggered;");
-    set_act_intensity(act_int_phase[0], MCP_CS_PIN[0]);
-    set_act_intensity(act_int_phase[1], MCP_CS_PIN[1]);
-    set_act_intensity(act_int_phase[2], MCP_CS_PIN[2]);
+    ptr_buffer = &traceData[traceNumber];
+    
+    // preset the actinic circuits before trace begins
+    preset_trace_act_values();
 }
 
 void oledPrint(char* str){
@@ -121,36 +121,52 @@ void oledPrint(char* str){
     display.display();
 }
 
-void set_act_intensity(int x, int mcp_cs_pin)
-{
-    // x is desired light intensity
-    // mcpVal is the 16-bit value we send to MCP40101 digital potentiometer
-    // it has an offset, and we want zero to be absolutely zero so we way undershoot it
+int getMcpVal(int x){
+    // take a desired light intensity in uE, and calculate the the 16-bit value 
+    // that will be send to the MCP40101 digital potentiometer
+    // The zero_offset global variable is used to bring it to a real zero at x=0.
+
     unsigned int mcpVal = 0;
+
     if (x > 0){
         mcpVal = 2E-05 * pow(x, 2) + 0.047 * x + zero_offset;
     }
     if (mcpVal > 255){
         mcpVal = 255;
     }
-    
-    if (debugOut == true){
-    // serial output for debug
-    Serial.print("ue: ");
-    Serial.print(x);
-    Serial.print(", act: ");
-    Serial.println(mcpVal);
-        // output to display
-    display.clearDisplay();
-    display.setCursor(0, 15);
-    display.print("ue: ");
-    display.print(x);
-    display.print(", act: ");
-    display.print(mcpVal);
-    display.display();
-    }
+    return mcpVal;
+}
 
-    write_act_intensity(mcpVal, mcp_cs_pin);
+void preset_trace_act_values()
+{
+    // called before a trace to set all mcp ICs to the appropriate values    
+    for (int i = 0; i < 3; i++) {
+        int mcpVal = getMcpVal(act_int_phase[i]);
+        write_act_intensity(mcpVal, MCP_CS_PIN[i]);
+    }
+}
+
+void set_act_intensity(int x)
+{
+    // sets the current act intensity, for before traces or between.
+    // x is desired light intensity
+    
+    // const int MCP_CS_PIN23,
+    // const int ACT_GATE[] = {17, 16, 15};
+
+    if (x == 0)
+    {
+        for (int i = 0; i < 3; i++) {
+            digitalWrite(ACT_GATE[i], LOW);
+        }
+    }
+    
+    write_act_intensity(getMcpVal(x), MCP_CS_PIN[0]);
+
+    if (x > 0)
+    {
+        digitalWrite(ACT_GATE[0], HIGH);
+    }
 }
 
 void write_act_intensity(int value, int mcp_cs_pin)
@@ -283,9 +299,33 @@ void return_params()
     Serial.println("];");
 }
 
-void pushData(){
+void pushData(int whichTraceBuffer){
     for (int i = 0; i <= num_points; i++){
-        send_data_point(numAq, i);
+        send_data_point(i, whichTraceBuffer);
+    }
+}
+
+void send_data_point(int wrt_cnt, int trace)
+{
+    
+    if (wrt_cnt >= num_points)
+    {
+        Serial.println(";");
+    }
+    else
+    {
+        Serial.print(wrt_cnt);
+        Serial.print(",");
+        Serial.print(traceData[0].data[wrt_cnt].time_us[0]);
+        // Serial.print(",");
+        // Serial.print(traceData[0].data[wrt_cnt].time_us[1]);
+        
+        for (int i = 0; i < numAq; i++){
+            Serial.print(", ");    
+            Serial.print(traceData[trace].data[wrt_cnt].aq[i]);
+        }
+        Serial.println(""),
+        delayMicroseconds(1);
     }
 }
 
@@ -295,6 +335,8 @@ void toggleLedPower(int val){
     } else {
         digitalWrite(POWER_GATE, LOW);
     }
+    bool state = digitalRead(POWER_GATE);
+    Serial.println(state);
 }
 
 void handle_action()
@@ -303,7 +345,7 @@ void handle_action()
     switch (state)
     {
     case GOT_A:
-        set_act_intensity(current_value, MCP_CS_PIN[trace_phase]);
+        set_act_intensity(current_value);
         break;
     case GOT_B:
         break;
@@ -319,7 +361,9 @@ void handle_action()
     case GOT_F:
         break;
     case GOT_G:
-        pushData();
+        // not ready for mulitple buffers yet
+        // pushData(current_value);
+        pushData(0);
         break;
     case GOT_H:
         break;
@@ -461,9 +505,15 @@ void process_inc_byte(const byte c)
         } // end switch
     }     // end of not digit
 }
+void adcInterrupt(){
+    aqFlag = true;
+}
 
+void get_power_state(){
+    digitalRead(POWER_GATE);
+}
 
-void measurement_pulse()
+void measurement_pulse(int numAq, TraceBuffer *buffer)
 {
     // once it triggers, it executes the following sequence of actions:
     // if this is a singleturnover flash trigger point, then we trigger the single turnover flash
@@ -474,24 +524,34 @@ void measurement_pulse()
         digitalWrite(STO_FLASH_PIN, LOW);
         delayMicroseconds(8);
     }
-    if (counter == 0){
-        zeroTime = micros();
-    }
 
+    Point pnt;
+    pnt.time_us[0] = micros() - zeroTime;
     // turn on measureing pulse leds
     meas_pulse_on();
+    // activate interrupt
+    // attachInterrupt(digitalPinToInterrupt(ADC_SSTRB_PIN), adcInterrupt, RISING);
+    
     delayMicroseconds(trigger_delay); // wait to trigger ADC
+    
+    for (int i = 0; i < numAq; i++){
 
-    Point pnt = adc.read(1, zeroTime);
+        pnt.aq[i] = adc.read();   
+    }
+    
+    pnt.time_us[1] = micros() - zeroTime;
 
-    while ((micros() - zeroTime)  < pulse_length){
+    while ((micros() - pnt.time_us[0])  < pulse_length){
         delayMicroseconds(1); // keep the pulse going for the full length
     }
 
     meas_pulse_off();
 
     // handle data storage in buffer
-    buffer[counter] = pnt;
+    
+    // traceData.buffer[traceNumber];
+    // buffer[counter] = pnt;
+    buffer->data[counter] = pnt;
 }
 
 void init_digital_pins(){
@@ -524,12 +584,16 @@ void cleanupTrace(){
         Serial.print("trace finished;");
     }
 
+    // pushData
+    // pushData(0);
+
     //turn off all actinic gates
     for (int i = 0; i < 3; i++){
         digitalWrite(ACT_GATE[0], LOW);
     }
 
     size_t n = sizeof(meas_led_array) / sizeof(meas_led_array[0]);
+    
     for (unsigned int i=1; i < n; i++)
     {
         digitalWrite(meas_led_array[i], LOW);
@@ -559,8 +623,6 @@ void setup()
     // initialize digital pins
     init_digital_pins();
         
-
-
     //Initialize display by providing the display type and its I2C address.
     display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
     display.setCursor(10, 15);
@@ -581,8 +643,9 @@ void setup()
     // digitalWrite(CS_PIN, HIGH);
     // pinMode(CS_PIN, OUTPUT);
 
-    set_act_intensity(ACT_OFF_VAL, MCP_CS_PIN[trace_phase]);
-    Serial.println("set act intensity");
+    set_act_intensity(ACT_OFF_VAL);
+    Serial.println("turn off lights");
+    
     // set counter above threshold so it doesn't execute trace
     counter = num_points + 1;
     Serial.print("counter: ");
@@ -596,67 +659,68 @@ void setup()
     Serial.println("display ready");
 }
 
-
-void send_data_point(int numAq, int wrt_cnt)
-{
-    if (wrt_cnt >= num_points)
-    {
-        Serial.println(";");
-    }
-    else
-    {
-        Serial.print(wrt_cnt);
-        Serial.print(",");
-        Serial.print(buffer[wrt_cnt].time_us);
-        
-        for (int i = 0; i < numAq; i++){
-            Serial.print(", ");    
-            Serial.print(buffer[wrt_cnt].data[i]);
-        }
-        Serial.println(""),
-        delayMicroseconds(4);
-    }
-}
-
 void readAndDisplay(int numAq){
     // // visual feedback
     // adc.setNumAq(numAq);
-    Point pnt = adc.read(numAq, micros());
-    display.clearDisplay();
-    display.setCursor(0, 0);
-    display.print(pnt.time_us);
+    int row[] = {8, 16, 24};
+    int col[] = {0, 40, 80};
     
+    Point pnt;
+    pnt.time_us[0] = micros();
+
     for (int i = 0; i < numAq; i++){
-        display.setCursor(20, i * 10);
-        display.print(pnt.data[i]);
+        pnt.aq[i] = adc.read();
     }
+    for (int j = numAq; j < MAX_AQ; j++) {
+        pnt.aq[j] = 0;
+    }
+
+    pnt.time_us[1] = micros() - pnt.time_us[0];
+    
+    display.clearDisplay();
+
+    display.setCursor(0, 0);
+    display.print("aq time (us): ");
+    display.print(pnt.time_us[1]);
+
+    display.setCursor(col[0], row[0]);
+    display.print(pnt.aq[0]);
+
+    display.setCursor(col[1], row[0]);
+    display.print(pnt.aq[1]);
+    
+    display.setCursor(col[2], row[0]);
+    display.print(pnt.aq[2]);
+
+    display.setCursor(col[0], row[1]);
+    display.print(pnt.aq[3]);
+    
+    display.setCursor(col[1], row[1]);
+    display.print(pnt.aq[4]);
+
+    display.setCursor(col[2], row[1]);
+    display.print(pnt.aq[5]);
+
+    display.setCursor(col[0], row[2]);
+    display.print(pnt.aq[6]);
+    
+    display.setCursor(col[1], row[2]);
+    display.print(pnt.aq[7]);
+
+    display.setCursor(col[2], row[2]);
+    display.print(pnt.aq[8]);
+
     display.display();
-
-   
-    // display.clearDisplay();
-    // display.setCursor(0, 0);
-    // display.print("val: ");
-    // display.print(reading);
-
-    // display.setCursor(0, 10);
-    // display.print("idx: ");
-    // display.print(idx);
-
-    // display.setCursor(0, 20);
-    // display.print("V: ");
-    // double voltage = getVoltage(reading);
-    // display.print(voltage);
-
-    // display.display();
 }
 
 
 
 void loop()
 {   
-    if (measureState == 0){
-        readAndDisplay(4);
-    }
+    // if (measureState == 0){
+    //     readAndDisplay(9);
+    //     delay(400);
+    // }
     // static int idx = 0;
     // if (idx < 10000){
     //     idx++;
@@ -675,6 +739,10 @@ void loop()
     while (Serial.available())
     {
         process_inc_byte(Serial.read());
+    }
+
+    if (measureState == 0){
+        readAndDisplay(numAq);
     }
 
     if (counter <= num_points)
@@ -701,7 +769,7 @@ void loop()
 
             // perform a measurement pulse
             tLast = 0;
-            measurement_pulse();
+            measurement_pulse(numAq, ptr_buffer);
             counter++;
         }
     }
