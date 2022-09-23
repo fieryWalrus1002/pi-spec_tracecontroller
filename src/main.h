@@ -1,7 +1,9 @@
 #ifndef _MAIN_H_
 #define _MAIN_H_
+const int MAX_INT_VAL = 32768;
+const int INT_SAFETY_VAL = 3276;
 const int MAX_AQ = 9;
-const int MAX_DATA = 8192;
+const int MAX_DATA = 16384;
 
 // struct to store information about trace paramters, store them and
 // maybe a pointer to a data buffer for that trace?
@@ -25,7 +27,7 @@ TraceBuffer traceData[1];
 TraceBuffer *ptr_buffer;
 
 // void send_data_point(int, int, TraceBuffer*);
-void get_power_state();
+
 void send_data_point(int, int);
 void write_act_intensity(int, int);
 void set_act_intensity(int, int);
