@@ -79,7 +79,10 @@ bool ads_vref_int_enabled = 0;  // default voltage reference is external
 // }
 
 void MAX1132::init(){
-
+    
+    pinMode(ADC_CS_PIN, OUTPUT);
+    pinMode(ADC_RST_PIN, OUTPUT);
+    pinMode(ADC_SSTRB_PIN, INPUT); 
   
   // calibrate the ADC
   // take the chip select low to select the device:

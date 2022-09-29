@@ -11,6 +11,7 @@
 const int ADC_CS_PIN = 28;
 const int ADC_RST_PIN = 29;
 const int ADC_SSTRB_PIN = 30;
+
 // 11011000
 const byte CALBYTE = 0xC8;// calibration control byte
 const byte READBYTE = 0xD8; // acquire unipolar in long acquistion mode (~150 ksps with ext clock)

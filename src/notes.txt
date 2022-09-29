@@ -1,0 +1,11 @@
+Notes:
+
+okay, so now we have the 12v power switch set up for 22 
+act phases should be good
+try it out, if it works, try the transistor input gates
+and then measure a plant
+
+k(1) turns on 12v power
+k(0) turns it off
+
+j(1) switches detector circuits

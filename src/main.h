@@ -27,10 +27,9 @@ TraceBuffer traceData[1];
 TraceBuffer *ptr_buffer;
 
 // void send_data_point(int, int, TraceBuffer*);
-
+void send_response(auto, auto);
 void send_data_point(int, int);
-void write_act_intensity(int, int);
-void set_act_intensity(int, int);
-void preset_trace_act_values();
+void write_act_intensity(int);
+void switch_act_gate(int);
 
 #endif
