@@ -1,10 +1,5 @@
-#include <Arduino.h>
-#include <Wire.h>
-#include <SPI.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
 #include "main.h"
-#include "max1132.h"
+
 #define OLED_RESET -1
 
 elapsedMicros tLast;
@@ -21,23 +16,7 @@ MAX1132 adc;
 
 long readInterval = 250000; // time between display read updates for non measuring state fun measurmeents
 
-// define pins
-const int SAT_PULSE_GATE = 38;
-const int DETECTOR_GATE_PIN = 32;
-// 30  - ADC_CS_PINT
-// 29 - ADC_RST_PIN
-// 28 - ADC_SSTRB_PIN for max1132 input signal of adc ready state
-const int MCP_CS_PIN = 23;
-const int ACT_GATE_PIN = 22;
-const int POWER_GATE_PIN = 21;
-const int STO_FLASH_PIN = 20;
-// 19 - SCL - SSD1306 IC2
-// 18 - SDA - SSD1306 IC2
-// 13 - SCK
-// 12 - MISO
-// 11 - MOSI 
-const int meas_led_array[] = {0, 2, 3, 4, 5, 6, 7, 8, 9, 10}; // 0 will not flash anything
-const int pin_setup_array[] {SAT_PULSE_GATE, DETECTOR_GATE_PIN, MCP_CS_PIN, ACT_GATE_PIN, POWER_GATE_PIN, STO_FLASH_PIN};
+
 
 int incoming_byte = 0;
 int counter = 0;
@@ -188,18 +167,20 @@ void set_ir_led(const int value)
 
 void set_pulse_length(const int value)
 {
-    pulse_length = value;
+    pulse_length = value;    
+    send_response("pulse_length", pulse_length)
 }
 
 void set_sat_pulse_end(const int value)
 {
     sat_pulse_end = value;
+    send_response("sat_pulse_end", sat_pulse_end);
 }
 
 void set_sat_pulse_begin(const int value)
 {
     sat_pulse_begin = value;
-    
+    send_response("sat_pulse_begun", sat_pulse_begin);
 }
 
 void set_phase_act_value(const int value, int phase_num)
@@ -348,10 +329,13 @@ void send_response(auto respcode, auto val){
     /* send a chararacter array and a value back across serial to acknowledge receipt
         of the command. 
     */
-    Serial.print(respcode);
-    Serial.print(":");
-    Serial.print(val);
-    Serial.println(";");
+    if (DEBUG_MODE == true){
+        Serial.print(respcode);
+        Serial.print(":");
+        Serial.print(val);
+        Serial.println(";");
+    }
+    
 }
 
 
