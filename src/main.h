@@ -6,8 +6,7 @@
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include "pins.h"
-#include "max1132.h"
+
 
 const int MAX_INT_VAL = 32768;
 const int INT_SAFETY_VAL = 3276;
@@ -46,5 +45,6 @@ void send_response(auto, auto);
 void send_data_point(int, int);
 void write_act_intensity(int);
 void switch_act_gate(int);
-
+void pinTest(int);
+void testMeasLedPins(int);
 #endif

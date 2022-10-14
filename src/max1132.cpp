@@ -36,17 +36,14 @@
  - Connect +AVdd pin 4 to 5v
  - Connect SCLK to pin uC SPI
  - connect DIN pin to  uC SPI
- - connect DOUTpin to uC SPI
+ - connect DOUT pin to uC SPI
  - connect CS to pin defined in init()
  - connect SSTRB to pin defined in init()
  - 
 
  ------------------------------------------------------------------------------    
  Function list
- 
-  init(INT)*                  
-  init()*                     
-  read(channel, SD|DF)
+ in header
 
  ------------------------------------------------------------------------------    
 
@@ -66,6 +63,30 @@ M1/M0
 01: start internal calibration, do on startup.
 10: software power-down mode. 
 11: 32 external clocks per conversion (long acquisition mode)
+
+
+example: 
+const byte CALBYTE = 0xC8;// calibration control byte
+
+calbye, 200U
+11001000
+7=1, control bit
+6=1, unipolar
+5=0, internal clock 
+4,3=01, start internal calibration
+2=unused
+1=unused
+0=unused
+
+readbyte, 216
+11011000
+7=1, control bit
+6=1, unipolar
+5=0, internal clock 
+4l,3 = 11, 32 External clocks per conversion, long aq mode
+2,1,0=0, unused
+
+
 */
 
 #include "Arduino.h"
@@ -78,13 +99,16 @@ bool ads_vref_int_enabled = 0;  // default voltage reference is external
 //   ads_address = _address;   // Set ADC i2c address to the one passed to the function
 // }
 
-void MAX1132::init(){
-    
+void MAX1132::initPins(){
     pinMode(ADC_CS_PIN, OUTPUT);
     pinMode(ADC_RST_PIN, OUTPUT);
-    pinMode(ADC_SSTRB_PIN, INPUT); 
-  
-  // calibrate the ADC
+    pinMode(ADC_SSTRB_PIN, INPUT);
+
+    digitalWrite(ADC_CS_PIN, HIGH);
+    digitalWrite(ADC_RST_PIN, HIGH); 
+}
+
+void MAX1132::calAdc(){
   // take the chip select low to select the device:
     digitalWrite(ADC_CS_PIN, LOW);
 
@@ -93,40 +117,31 @@ void MAX1132::init(){
     
     // take the chip select high to de-select:
     digitalWrite(ADC_CS_PIN, HIGH);
-  
 }
 
-// uint16_t MAX1132::read()
-// {
-//     uint16_t reading;
-
-//     // take the chip select low to select the device:
-//     digitalWrite(ADC_CS_PIN, LOW);
-
-//     // send the device the acquistion command byte for unipolar conversion long
-//     SPI.transfer(READBYTE);
-//     reading = SPI.transfer(0x00);     		// receive low byte
-//     reading |= SPI.transfer(0x00) << 8;    // receive high byte
-        
-//     // take the chip select high to de-select:
-//     digitalWrite(ADC_CS_PIN, HIGH);
-
-//     return reading; // return the full 16 bit reading from the ADC channel
-// }
+void MAX1132::init(){
+    initPins();  // set pins to appropriate modes and values
+    calAdc(); // send the calibration byte
+}
 
 uint16_t MAX1132::read()
 {
-    uint16_t reading;
+    int16_t reading{0}; //
     // take the chip select low to select the device:
     digitalWrite(ADC_CS_PIN, LOW);
     
     // send the device the acquistion command byte for unipolar conversion long
     SPI.transfer(READBYTE);
-    // delayMicroseconds(ADC_DELAY); //);
-    reading = SPI.transfer(0x00);     		// receive low byte
-    // delayMicroseconds(ADC_DELAY); //);
-    reading |= SPI.transfer(0x00) << 8;    // receive high byte
+    
+    // discard first reading
+    int16_t _ = SPI.transfer(0x00);
+    int16_t highByte = SPI.transfer(0x00);
+    int16_t lowByte = SPI.transfer(0x00);
+    
+    reading |= highByte << 8;
+    reading |= lowByte;
     
     digitalWrite(ADC_CS_PIN, HIGH);
+
     return reading;
 }
