@@ -47,4 +47,5 @@ void write_act_intensity(int);
 void switch_act_gate(int);
 void pinTest(int);
 void testMeasLedPins(int);
+void handle_act_phase(int);
 #endif

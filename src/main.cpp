@@ -91,9 +91,7 @@ void execute_trace()
     counter = 0;
     zeroTime = micros();
     ptr_buffer = &traceData[traceNumber];
-    
-
-
+    handle_act_phase(trace_phase);
 }
 
 void handle_act_phase(int trace_num){
@@ -158,13 +156,13 @@ void set_pulse_interval(const int value)
 void set_vis_led(const int value)
 {
     meas_led_vis = pins.meas_led_array[value];
-    send_response("meas_led_vis",pins.meas_led_array[value]);
+    send_response("meas_led_vis", meas_led_vis);
 }
 
 void set_ir_led(const int value)
 {
     meas_led_ir = pins.meas_led_array[value];
-    send_response("meas_led_ir",pins.meas_led_array[value]);
+    send_response("meas_led_ir",meas_led_ir);
 }
 
 void set_pulse_length(const int value)
@@ -734,19 +732,10 @@ void loop()
     {
         if (tLast > pulse_interval){
                 // check saturation pulse time points
-                if (counter == sat_pulse_begin)
+                if ((counter == sat_pulse_begin) | (counter == sat_pulse_end))
                 {
-                    // transitiopn act value
-                    trace_phase = 1;
-                    // handle_saturation_pulse(pulse_mode, trace_phase);
-                    write_act_intensity(act_int_phase[trace_phase]);
-
-                } else if (counter == sat_pulse_end)
-                {
-                    trace_phase = 2;
-                    write_act_intensity(act_int_phase[trace_phase]);
-                    // handle_saturation_pulse(pulse_mode, trace_phase);
-                    
+                    trace_phase++;
+                    handle_act_phase(trace_phase);
                 }
 
             // perform a measurement pulse
