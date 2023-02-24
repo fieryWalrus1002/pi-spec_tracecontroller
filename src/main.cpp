@@ -5,7 +5,7 @@
 #define OLED_RESET -1
 
 elapsedMicros tLast;
-
+const int aqMode {1};
 long zeroTime = 0;
 // bool debugOut = false; // set if we do any serial output for debugging or not
 bool measureState = false; // state for measurements
@@ -30,8 +30,6 @@ int meas_led_vis = 0;
 int meas_led_ir = 7;
 int num_points = 1000;
 int trigger_delay = 35;
-int numAq = 6;
-int numPreAq = 3;
 bool power_state = false; // status of the power switch
 
 // actinic stuff
@@ -78,6 +76,8 @@ typedef enum
 } states;
 states state = NONE;
 int current_value;
+int numAq = 0;
+int numPreAq = 0;
 
 
 ////////////////////////////////////////////// functions //////////////////////////////////////////////////////////
@@ -189,6 +189,18 @@ void set_phase_act_value(const int value, int phase_num)
     send_response("act_int_phase", act_int_phase[phase_num]);
 }
 
+int get_numPreAq()
+{
+    int result = MAX_AQ / 3;
+    return(result);
+}
+
+int get_numAq()
+{
+    int result = MAX_AQ - (MAX_AQ / 3);
+    return result;
+}
+
 void meas_pulse_on()
 {
     if (meas_led_vis != 0){
@@ -272,6 +284,8 @@ void return_params()
 }
 
 void pushData(int whichTraceBuffer){
+
+
     for (int i = 0; i <= num_points; i++){
         send_data_point(i, whichTraceBuffer);
         delayMicroseconds(10);
@@ -280,7 +294,7 @@ void pushData(int whichTraceBuffer){
 
 void send_data_point(int wrt_cnt, int trace)
 {
-    
+
     if (wrt_cnt >= num_points)
     {
         Serial.println(";");
@@ -293,6 +307,7 @@ void send_data_point(int wrt_cnt, int trace)
         // Serial.print(",");
         // Serial.print(traceData[0].data[wrt_cnt].time_us[1]);
         
+
         for (int i = 0; i < (numPreAq + numAq); i++){
             Serial.print(", ");    
             Serial.print(traceData[trace].data[wrt_cnt].aq[i]);
@@ -535,9 +550,10 @@ void process_inc_byte(const byte c)
 }
 
 
-void measurement_pulse(int numAq, int numPreAq, TraceBuffer *buffer)
+
+void measurement_pulse(TraceBuffer *buffer, int aqMode)
 {
-    // once it triggers, it executes the following sequence of actions:
+// once it triggers, it executes the following sequence of actions:
     // if this is a singleturnover flash trigger point, then we trigger the single turnover flash
     if (counter == sat_pulse_begin && pulse_mode == 2)
     {
@@ -555,19 +571,19 @@ void measurement_pulse(int numAq, int numPreAq, TraceBuffer *buffer)
 
         pnt.aq[i] = adc.read();   
     }
-
-    // turn on measureing pulse leds
-    meas_pulse_on();
-    // activate interrupt
-    // attachInterrupt(digitalPinToInterrupt(ADC_SSTRB_PIN), adcInterrupt, RISING);
+    // timeafter pre-pulse values
+    pnt.time_us[1] = micros() - zeroTime;
     
-    delayMicroseconds(trigger_delay); // wait to trigger ADC
+    // being measuring pulse
+    meas_pulse_on();
+
+
     for (int i = numPreAq; i < numAq + numPreAq; i++){
         pnt.aq[i] = adc.read();   
     }
 
-    
-    pnt.time_us[1] = micros() - zeroTime;
+    // time it took to do the x measurements during the pulse
+    pnt.time_us[2] = micros() - zeroTime;
 
     while ((micros() - pnt.time_us[0])  < pulse_length){
         delayMicroseconds(1); // keep the pulse going for the full length
@@ -623,6 +639,9 @@ void setup()
     display.setCursor(0, 15);
     display.print("ready");
     display.display();
+
+    numAq = get_numAq();
+    numPreAq = get_numPreAq();
 }
 
 void pinTest(int pinNumber){
@@ -640,20 +659,20 @@ double toVoltage(double val){
 }
 
 void getKMeasurements(int k, Point* pnt){
-        pnt->time_us[0] = micros();
+    pnt->time_us[0] = micros();
+    
+    for (int i = 0; i < k; i++){
+        pnt->aq[i] = adc.read();
+    }
 
-        for (int i = 0; i < numAq; i++){
-            pnt->aq[i] = adc.read();
-        }
-
-        pnt->time_us[1] = micros() - pnt->time_us[0];
+    pnt->time_us[1] = micros() - pnt->time_us[0];
 }
 
 double getMeanMeasVal(int k, Point* pnt){
     // mean Voltage
     double sum{0};
 
-    for (int i = 0; i < numAq; i++){
+    for (int i = 0; i < k; i++){
         sum += pnt->aq[i];
     }
     
@@ -663,18 +682,19 @@ double getMeanMeasVal(int k, Point* pnt){
 double getStdDev(int k, Point* pnt, double meanVal){
     // calculate std dev from 
     double ss = 0;
-    for (int i = 0; i < numAq; i++){
+    for (int i = 0; i < k; i++){
         ss += sq(pnt->aq[i] - meanVal);
     }
-    return sqrt(ss / numAq);
+    return sqrt(ss / k);
 }
 
-void displayKMeasResults(long time_us, double meanVal, double sd){
+void displayKMeasResults(long *time_us, double meanVal, double sd){
     // Format and display results of k measurements on ssd1306
         display.clearDisplay();
         display.setCursor(0, 0);
-        display.print("/\t: ");
-        display.print(time_us);
+        display.print("/\\t: ");
+        display.setCursor(60, 0);
+        display.print(time_us[1]);
         display.setCursor(0, 8);
         display.print("meas: ");
         display.print(meanVal);
@@ -699,15 +719,14 @@ void readAndDisplayKValues(int k, long interval){
         
         Point pnt;
 
-        getKMeasurements(numAq, &pnt);
+        getKMeasurements(k, &pnt);
         
         double meanVal = getMeanMeasVal(k, &pnt);
 
         double sd = getStdDev(k, &pnt, meanVal);
 
         double v = meanVal * (12.0 / 65356.0);
-
-        displayKMeasResults(pnt.time_us[1], v, sd);
+        displayKMeasResults(pnt.time_us, v, sd);
         // debugDisplay(pnt.aq[0]);
         readLast = micros();
 
@@ -723,7 +742,6 @@ void loop()
     }
 
     if (measureState == 0){
-
         readAndDisplayKValues(numAq, readInterval);
         // testMeasLedPins(1); // teensy pin number, not LED number
     }
@@ -740,7 +758,7 @@ void loop()
 
             // perform a measurement pulse
             tLast = 0;
-            measurement_pulse(numAq, numPreAq, ptr_buffer);
+            measurement_pulse(ptr_buffer, aqMode);
             counter++;
         }
     }

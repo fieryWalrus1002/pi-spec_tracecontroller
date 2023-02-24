@@ -10,8 +10,8 @@
 
 const int MAX_INT_VAL = 32768;
 const int INT_SAFETY_VAL = 3276;
-const int MAX_AQ = 9;
-const int MAX_DATA = 16384;
+const int MAX_AQ = 15;
+const int MAX_DATA = 8000;
 bool DEBUG_MODE = false; // set this to true to send responses to commands, for debug purposes. Disable before real measurements, as serial output lags the program beyond acceptable time delays.
 
 // struc that contains all of our trace variables, to remove global variables as much as possible
@@ -24,7 +24,7 @@ struct TraceParameters
 
 struct Point
 {
-    long time_us[2]; // begging and end time of this point's aq
+    long time_us[3]; // begin of measurement, time of pulse turned on, time of pulse turned off
     uint16_t aq[MAX_AQ];
 };
 
