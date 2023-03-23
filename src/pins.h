@@ -1,8 +1,6 @@
 #include <Arduino.h>
 
 // new pins
-const int 
-
 
 class Pins {
     public:
@@ -28,7 +26,7 @@ class Pins {
         7,  // 940nm
         8, // 820nm
         9}; // 0 will not flash anything
-        const int pin_setup_array[6] {SAT_PULSE_GATE, DETECTOR_GATE_PIN, MCP_MEAS_CS_PIN, MCP_ACT_CS_PIN, ACT_GATE_PIN, POWER_GATE_PIN, STO_FLASH_PIN};
+        const int pin_setup_array[6] {MCP_MEAS_CS_PIN, MCP_ACT_CS_PIN, POWER_GATE_PIN, STO_FLASH_PIN};
 
         void init();
         void meas_led_cleanup();

@@ -119,6 +119,7 @@ void MAX1132::calAdc(){
     digitalWrite(ADC_CS_PIN, HIGH);
 }
 
+
 void MAX1132::init(){
     initPins();  // set pins to appropriate modes and values
     calAdc(); // send the calibration byte
@@ -134,7 +135,7 @@ uint16_t MAX1132::read()
     SPI.transfer(READBYTE);
     
     // discard first reading
-    int16_t _ = SPI.transfer(0x00);
+    SPI.transfer(0x00);
     int16_t highByte = SPI.transfer(0x00);
     int16_t lowByte = SPI.transfer(0x00);
     

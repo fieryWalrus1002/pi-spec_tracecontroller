@@ -4,8 +4,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <SPI.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
+
 
 
 const int MAX_INT_VAL = 32768;
@@ -43,9 +42,9 @@ TraceBuffer *ptr_buffer;
 // void send_data_point(int, int, TraceBuffer*);
 void send_response(auto, auto);
 void send_data_point(int, int);
-void write_act_intensity(int);
-void switch_act_gate(int);
+// void write_act_intensity(int);
+// void switch_act_gate(int);
 void pinTest(int);
-void testMeasLedPins(int);
+// void testMeasLedPins(int);
 void handle_act_phase(int);
 #endif

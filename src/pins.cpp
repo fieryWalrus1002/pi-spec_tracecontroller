@@ -1,10 +1,6 @@
 #include "pins.h"
 
 void Pins::init(){
-    pinMode(Pins::SAT_PULSE_GATE,OUTPUT);
-    pinMode(Pins::DETECTOR_GATE_PIN,OUTPUT);
-    pinMode(Pins::MCP_CS_PIN,OUTPUT);
-    pinMode(Pins::ACT_GATE_PIN,OUTPUT);
     pinMode(Pins::POWER_GATE_PIN,OUTPUT);
     pinMode(Pins::STO_FLASH_PIN,OUTPUT);
     pinMode(Pins::meas_led_array[0], OUTPUT);
@@ -17,11 +13,6 @@ void Pins::init(){
     pinMode(Pins::meas_led_array[7], OUTPUT);
     pinMode(Pins::meas_led_array[8], OUTPUT);
 
-
-    digitalWrite(Pins::SAT_PULSE_GATE,LOW);
-    digitalWrite(Pins::DETECTOR_GATE_PIN,LOW);
-    digitalWrite(Pins::MCP_CS_PIN,LOW);
-    digitalWrite(Pins::ACT_GATE_PIN,LOW);
     digitalWrite(Pins::POWER_GATE_PIN,LOW);
     digitalWrite(Pins::STO_FLASH_PIN,LOW);
     digitalWrite(Pins::meas_led_array[0], LOW);
