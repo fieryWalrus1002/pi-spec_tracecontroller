@@ -87,6 +87,9 @@ void LED_ARRAY::add(LED led){
     m_leds.push_back(led);
 }
 
+void LED_ARRAY::set_intensity(uint8_t led_num, uint8_t value, const uint8_t mode){
+    m_leds[led_num].set_intensity(value, mode);
+}
 
 uint8_t MCP41010::get_value(){
     // returns the current 0-255 value of the potentiometer
@@ -115,7 +118,6 @@ void LED::calibrate_intensity(uint8_t value){
     // Calibrate the intensity of the LED, as a fraction of the max current allowed
     // by the mode selected.
 
-    
     // calculate the resistance needed to set the LED to the desired current (in mA)
     uint8_t resistance = get_resistance_value(value);
     // calculate the current needed to set the LED to the given value
@@ -124,15 +126,28 @@ void LED::calibrate_intensity(uint8_t value){
     mcp41010.set_value(resistance);
 }
 
-int LED::set_intensity(uint8_t value, char mode){
-    // Set the intensity of the LED, as a fraction of the max current allowed
+
+
+void LED::on(){
+    // turn the LED on
+   digitalWrite(m_led_pin, HIGH);
+}
+
+void LED::off(){
+    // turn the LED off.
+    // intensity will be at whatever the current source is set to.
+    digitalWrite(m_led_pin, LOW);
+}
+
+void LED::set_intensity(uint8_t value, const uint8_t mode){
+// Set the intensity of the LED, as a fraction of the max current allowed
     // by the mode selected.
     // value: 0-255, fraction of max current
-    // mode: 'c' for constant illumination, 'p' for pulse mode
+    // mode: 1 for constant illumination, 0 for pulse mode
     
     int max_current = 0;
-
-    if (mode == 'p'){
+ 
+    if (mode == 0){
         max_current = m_max_surge;
     } else {
         max_current = m_max_constant;
@@ -147,20 +162,7 @@ int LED::set_intensity(uint8_t value, char mode){
 
     // set the current using the digital potentiometer
     mcp41010.set_value(resistance);
-    
-    return value;
-}
-
-void LED::on(){
-    // turn the LED on
-   digitalWrite(m_led_pin, HIGH);
-}
-
-void LED::off(){
-    // turn the LED off.
-    // intensity will be at whatever the current source is set to.
-    digitalWrite(m_led_pin, LOW);
-}
+};
 
 uint8_t LED::get_resistance_value(uint8_t value){
     // calculate the resistance needed to set the LED to the given current (in mA)
@@ -168,13 +170,3 @@ uint8_t LED::get_resistance_value(uint8_t value){
     int resistance = 0;
     return resistance;
 }
-
-// void write_act_intensity(int value)
-// {
-//     // sets the current act intensity by changing MCP resistance 0-255/0-10k Ohm
-//     digitalWrite(pins.MCP_ACT_CS_PIN, LOW);
-//     SPI.transfer(B00010001);
-//     SPI.transfer(value);
-//     digitalWrite(pins.MCP_ACT_CS_PIN, HIGH);
-//     current_act_intensity = value;
-// }

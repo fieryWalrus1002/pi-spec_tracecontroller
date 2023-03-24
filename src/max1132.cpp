@@ -119,8 +119,14 @@ void MAX1132::calAdc(){
     digitalWrite(ADC_CS_PIN, HIGH);
 }
 
+void MAX1132::set_aquisition_points(int max_aq){
+    m_max_aq = max_aq;
+    aq = m_max_aq / 3;
+    preaq = m_max_aq - aq;
+}
 
-void MAX1132::init(){
+void MAX1132::init(int max_aq){
+    set_aquisition_points(max_aq);
     initPins();  // set pins to appropriate modes and values
     calAdc(); // send the calibration byte
 }

@@ -37,7 +37,7 @@ class LED
 {  
 public:
     LED(std::string led_name, uint8_t led_pin, uint8_t mcp_cs_pin, uint8_t shunt_pin, uint16_t max_source_current, uint16_t max_constant_current, uint16_t max_surge_current);
-    int set_intensity(uint8_t value, char mode);   
+    void set_intensity(uint8_t value, const uint8_t mode);   
     void on();
     void off();
 private:
@@ -57,9 +57,7 @@ class LED_ARRAY
 public:
     void add(LED led);
     void change_led_state(uint8_t led_num, bool state);
-    void set_meas_led(uint8_t led_num);
-    void set_act_led(uint8_t led_num);
-    void set_intensity(uint8_t led_num, uint8_t value);
+    void set_intensity(uint8_t led_num, uint8_t value, const uint8_t mode);
 private:
     std::vector<LED> m_leds;
     uint8_t m_meas_led;

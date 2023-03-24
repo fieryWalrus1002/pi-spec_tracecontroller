@@ -4,21 +4,20 @@
 #include "led.h"
 
 LED_ARRAY leds;
-leds.add_led("actinic", 2, 3, 4, 1000, 1000, 1000);
-leds.add_led("blue", 5, 6, 7, 1000, 1000, 1000);
-leds.add_led("green", 8, 9, 10, 1000, 1000, 1000);
-leds.add_led("red", 11, 12, 13, 1000, 1000, 1000);
-leds.add_led("white", 14, 15, 16, 1000, 1000, 1000);
+
+
+
+
+
 
 
 
 #define OLED_RESET -1
-
+uint8_t k_push_delay = 10; // delay between data point pushes in us
 elapsedMicros tLast;
 const int aqMode {1};
 long zeroTime = 0;
 bool measureState = false; // state for measurements
-bool aqFlag = false; // flag indication of adc ready for new reading
 int traceNumber = 0; // the current trace number, index in traceData for current trace data to be placed
 int current_act_intensity = 0;
 
@@ -34,8 +33,8 @@ unsigned int pulse_length = 75; // in uS
 int post_trig_pulse_length = 0;
 unsigned int pulse_interval = 1000; // in uS, so 1000 is 1ms between measurement pulses
 int pulse_mode = 1; // 0 just actinic setting, 1 sat pulse, 2 single turnover
-int meas_led_vis = 0;
-int meas_led_ir = 7;
+int meas_led_num = 0;
+int act_led_num = 4;
 int num_points = 1000;
 int trigger_delay = 35;
 bool power_state = false; // status of the power switch
@@ -74,8 +73,6 @@ typedef enum
 } states;
 states state = NONE;
 int current_value;
-int numAq = 0;
-int numPreAq = 0;
 
 
 ////////////////////////////////////////////// functions //////////////////////////////////////////////////////////
@@ -93,14 +90,15 @@ void execute_trace()
 }
 
 void handle_act_phase(int trace_num){
-    // if (act_int_phase[trace_num] > 0){
-    //     write_act_intensity(act_int_phase[trace_num]);
-    //     switch_act_gate(1);
-    // } else
-    // {
-    //     switch_act_gate(0);
-    // }
-    
+    uint8_t desired_value = act_int_phase[trace_num];
+    if (desired_value == 0){
+        leds.set_intensity(act_led_num, 0, 1);
+        leds.change_led_state(act_led_num, 0);
+    }
+    else{
+        leds.set_intensity(act_led_num, desired_value, 1 );
+        leds.change_led_state(act_led_num, 1);
+    }
 }
 
 
@@ -121,14 +119,8 @@ void set_pulse_interval(const int value)
 
 void set_vis_led(const int value)
 {
-    meas_led_vis = pins.meas_led_array[value];
-    send_response("meas_led_vis", meas_led_vis);
-}
-
-void set_ir_led(const int value)
-{
-    meas_led_ir = pins.meas_led_array[value];
-    send_response("meas_led_ir",meas_led_ir);
+    meas_led_num = pins.meas_led_array[value];
+    send_response("meas_led_num", meas_led_num);
 }
 
 void set_pulse_length(const int value)
@@ -195,10 +187,8 @@ void return_params()
 {
     Serial.print("counter=");
     Serial.print(counter);
-    Serial.print(",numAq=");
-    Serial.print(numAq);
-    Serial.print(",numPreAq=");
-    Serial.print(numPreAq);
+    Serial.print(",max_aq=");
+    Serial.print(MAX_AQ);
     Serial.print(",power_state=");
     Serial.print(power_state);
     Serial.print(", sat_pulse_begin=");
@@ -209,10 +199,8 @@ void return_params()
     Serial.print(pulse_length);
     Serial.print(", pulse_interval=");
     Serial.print(pulse_interval);
-    Serial.print(", meas_led_vis=");
-    Serial.print(meas_led_vis);
-    Serial.print(", meas_led_ir=");
-    Serial.print(meas_led_ir);
+    Serial.print(", meas_led_num=");
+    Serial.print(meas_led_num);
     Serial.print(", num_points=");
     Serial.print(num_points);
     Serial.print(", pulse_mode=");
@@ -226,17 +214,14 @@ void return_params()
     Serial.print("]");
     Serial.print(", trigger_delay=");
     Serial.print(trigger_delay);
-    
     Serial.println(";");
 
 }
 
 void pushData(int whichTraceBuffer){
-
-
     for (int i = 0; i <= num_points; i++){
         send_data_point(i, whichTraceBuffer);
-        delayMicroseconds(10);
+        delayMicroseconds(k_push_delay);
     }
 }
 
@@ -252,26 +237,14 @@ void send_data_point(int wrt_cnt, int trace)
         Serial.print(wrt_cnt);
         Serial.print(",");
         Serial.print(traceData[0].data[wrt_cnt].time_us[0]);
-        // Serial.print(",");
-        // Serial.print(traceData[0].data[wrt_cnt].time_us[1]);
-        
 
-        for (int i = 0; i < (numPreAq + numAq); i++){
+        for (int i = 0; i < MAX_AQ; i++){
             Serial.print(", ");    
             Serial.print(traceData[trace].data[wrt_cnt].aq[i]);
         }
         Serial.println("");
     }
 }
-
-// void switch_act_gate(int state){
-//     digitalWrite(pins.ACT_GATE_PIN, state);
-// }
-
-// void switch_detector_circuit(int val)
-// {
-//     digitalWrite(pins.DETECTOR_GATE_PIN, val);
-// }
 
 void set_12v_power(int val){
     if (val >= 1){
@@ -285,7 +258,6 @@ void set_12v_power(int val){
         power_state = true;
     }
     send_response("power_state", power_state);
-    
 }
 
 void send_response(auto respcode, auto val){
@@ -308,16 +280,11 @@ void set_debug(){
 
 void handle_action()
 {
-    // NONE, GOT_M, GOT_N, GOT_I, GOT_G, GOT_H, GOT_V, GOT_R, GOT_P
     switch (state)
     {
-    case GOT_A:
-        // write_act_intensity(current_value);
-        break;
     case GOT_B:
         break;
     case GOT_C:
-        // test pin outputs
         pinTest(current_value);
         break;
     case GOT_D:
@@ -329,8 +296,6 @@ void handle_action()
     case GOT_F:
         break;
     case GOT_G:
-        // not ready for mulitple buffers yet
-        // pushData(current_value);
         pushData(0);
         break;
     case GOT_H:
@@ -338,16 +303,12 @@ void handle_action()
     case GOT_I:
         set_pulse_interval(current_value);
         break;
-    case GOT_J:
-        // switch_detector_circuit(current_value);
-        break;
     case GOT_K:
         set_12v_power(current_value);
         break;
     case GOT_L:
         break;
     case GOT_M:
-        // Serial.println("trace_begun");
         execute_trace();
         break;
     case GOT_N:
@@ -359,17 +320,11 @@ void handle_action()
     case GOT_P:
         set_pulse_length(current_value);
         break;
-    case GOT_R:
-        set_ir_led(current_value);
-        break;
     case GOT_S:
         set_sat_pulse_end(current_value);
         break;
     case GOT_T:
         set_sat_pulse_begin(current_value);
-        break;
-    case GOT_U:
-        // switch_act_gate(current_value);
         break;
     case GOT_V:
         set_vis_led(current_value);
@@ -400,15 +355,11 @@ void process_inc_byte(const byte c)
     {
             current_value *= 10;
             current_value += c - '0';
-    
-
     } // end of digit
     else
     {
-        // set the new state if we recognize it
         switch (c)
         {
-        // GOT_M, GOT_N, GOT_I, GOT_G, GOT_H, GOT_V, GOT_R, GOT_P
         case '?':
             state = GOT_O;
             break;
@@ -497,65 +448,36 @@ void process_inc_byte(const byte c)
     }     // end of not digit
 }
 
-
-
-void measurement_pulse(TraceBuffer *buffer, int aqMode)
+void measurement_pulse(TraceBuffer *buffer, int meas_led)
 {
-// once it triggers, it executes the following sequence of actions:
-    // if this is a singleturnover flash trigger point, then we trigger the single turnover flash
-    if (counter == sat_pulse_begin && pulse_mode == 2)
-    {
-        digitalWrite(pins.STO_FLASH_PIN, HIGH);
-        delayMicroseconds(1);
-        digitalWrite(pins.STO_FLASH_PIN, LOW);
-        delayMicroseconds(8);
-    }
-
     Point pnt;
     pnt.time_us[0] = micros() - zeroTime;
 
-    // collect pre-pulse values
-    for (int i = 0; i < numPreAq; i++){
-
+    for (int i = 0; i < adc.preaq; i++){
         pnt.aq[i] = adc.read();   
     }
-    // timeafter pre-pulse values
+
     pnt.time_us[1] = micros() - zeroTime;
-    
-    // begin measuring pulse
-    // meas_pulse_on();
-    
 
+    leds.change_led_state(meas_led, 1);
 
-    for (int i = numPreAq; i < numAq + numPreAq; i++){
+    for (int i = adc.preaq; i < adc.aq + adc.preaq; i++){
         pnt.aq[i] = adc.read();   
     }
 
-    // time it took to do the x measurements during the pulse
     pnt.time_us[2] = micros() - zeroTime;
 
     while ((micros() - pnt.time_us[0])  < pulse_length){
-        delayMicroseconds(1); // keep the pulse going for the full length
+        delayMicroseconds(1);
     }
 
-    // turn off measuring pulse
-    leds.
+    leds.change_led_state(meas_led, 0);
 
     buffer->data[counter] = pnt;
 }
 
-
-
 void cleanupTrace(){
-
-    //turn off actinic gate
-    // switch_act_gate(0);
-    // write_act_intensity(0);
-
-    // ensure all measuring leds are off
     pins.meas_led_cleanup();
-
-    // reset trace variables
     measureState = false;
     trace_phase = 0;
 }
@@ -563,39 +485,22 @@ void cleanupTrace(){
 void setup()
 {
     Serial.begin(115200);
-
-    // initialize digital pins
     pins.init();
-        
-    //Initialize display by providing the display type and its I2C address.
-    // display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
-    // display.setCursor(10, 15);
-    // display.setTextSize(1);
-    // display.setTextColor(WHITE);
-    // display.print("init");
-    // display.display();
-    SPI.begin();
-    
-    // set up MCP41xx digital pot
-    adc.init();
-
-    // write_act_intensity(ACT_OFF_VAL);
-    
-    // set counter above threshold so it doesn't execute trace
+    leds.add(LED("520", 5, 6, 7, 1000, 1000, 1000));
+    leds.add(LED("545", 8, 9, 10, 1000, 1000, 1000));
+    leds.add(LED("554", 11, 12, 13, 1000, 1000, 1000));
+    leds.add(LED("563", 14, 15, 16, 1000, 1000, 1000));
+    leds.add(LED("563", 14, 15, 16, 1000, 1000, 1000));
+    leds.add(LED("572", 17, 18, 19, 1000, 1000, 1000));
+    leds.add(LED("630", 2, 3, 4, 1000, 1000, 1000));
+    leds.add(LED("740", 23, 24, 25, 1000, 1000, 1000));
+    leds.add(LED("810", 20, 21, 22, 1000, 1000, 1000));
+    leds.add(LED("940", 23, 24, 25, 1000, 1000, 1000));
+    adc.init(MAX_AQ);
     counter = num_points + 1;
-
-    // visual feedback
-    // display.clearDisplay();
-    // display.setCursor(0, 15);
-    // display.print("ready");
-    // display.display();
-
-    numAq = get_numAq();
-    numPreAq = get_numPreAq();
 }
 
 void pinTest(int pinNumber){
-    // pin test
     for (int i = 0; i < num_points; i++){
         digitalWrite(pinNumber, HIGH);
         delayMicroseconds(pulse_length);
@@ -604,11 +509,6 @@ void pinTest(int pinNumber){
     }
 }
 
-// 
-
-
-
-
 void loop()
 {   
     while (Serial.available())
@@ -616,24 +516,17 @@ void loop()
         process_inc_byte(Serial.read());
     }
 
-    if (measureState == 0){
-        // readAndDisplayKValues(numAq, readInterval);
-        // testMeasLedPins(1); // teensy pin number, not LED number
-    }
-
     if (counter <= num_points)
     {
         if (tLast > pulse_interval){
-                // check saturation pulse time points
                 if ((counter == sat_pulse_begin) | (counter == sat_pulse_end))
                 {
                     trace_phase++;
                     handle_act_phase(trace_phase);
                 }
 
-            // perform a measurement pulse
             tLast = 0;
-            measurement_pulse(ptr_buffer, aqMode);
+            measurement_pulse(ptr_buffer, meas_led_num);
             counter++;
         }
     }

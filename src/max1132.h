@@ -23,11 +23,16 @@ class MAX1132
 {  
 
 public:    
-    void init(); // activates spi1 and calibrates the adc
-    uint16_t read();    
+    void init(int max_aq); // activates spi1 and calibrates the adc
+    uint16_t read();
+    int preaq;
+    int aq;    
 private:
+    void set_aquisition_points(int max_aq);
     void initPins();
     void calAdc();
+    
+    int m_max_aq;
 };
 
 
