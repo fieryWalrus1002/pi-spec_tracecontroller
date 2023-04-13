@@ -99,56 +99,70 @@ bool ads_vref_int_enabled = 0;  // default voltage reference is external
 //   ads_address = _address;   // Set ADC i2c address to the one passed to the function
 // }
 
-void MAX1132::initPins(){
-    pinMode(ADC_CS_PIN, OUTPUT);
-    pinMode(ADC_RST_PIN, OUTPUT);
-    pinMode(ADC_SSTRB_PIN, INPUT);
-
-    digitalWrite(ADC_CS_PIN, HIGH);
-    digitalWrite(ADC_RST_PIN, HIGH); 
+void MAX1132::init_pins(){
+    pinMode(m_cs_pin, OUTPUT);
+    pinMode(m_rst_pin, OUTPUT);
+    pinMode(m_sstrb_pin, INPUT);
+    digitalWrite(m_cs_pin, HIGH);
+    digitalWrite(m_rst_pin, HIGH); 
 }
 
-void MAX1132::calAdc(){
+void MAX1132::calibrate(){
+    SPI.beginTransaction(adcSettings);
   // take the chip select low to select the device:
-    digitalWrite(ADC_CS_PIN, LOW);
+    digitalWrite(m_cs_pin, LOW);
 
-    // send the device the register you want to read:
-    SPI.transfer(CALBYTE);
+    //set up for unipolar
+    SPI.transfer(m_readbyte);
+
+    // send the calibration byte:
+    SPI.transfer(m_calbyte);
     
     // take the chip select high to de-select:
-    digitalWrite(ADC_CS_PIN, HIGH);
+    digitalWrite(m_cs_pin, HIGH);
+    SPI.endTransaction();
 }
 
-void MAX1132::set_aquisition_points(int max_aq){
+void MAX1132::set_aquisition_points(uint8_t max_aq){
     m_max_aq = max_aq;
-    aq = m_max_aq / 3;
-    preaq = m_max_aq - aq;
+    m_aq = m_max_aq / 3;
+    m_preaq = m_max_aq - m_aq;
 }
 
-void MAX1132::init(int max_aq){
+MAX1132::MAX1132(uint8_t max_aq, uint8_t cs_pin, uint8_t rst_pin, uint8_t sstrb_pin){
+    m_cs_pin = cs_pin;
+    m_rst_pin = rst_pin;
+    m_sstrb_pin = sstrb_pin;
+    SPI.begin();
     set_aquisition_points(max_aq);
-    initPins();  // set pins to appropriate modes and values
-    calAdc(); // send the calibration byte
+    init_pins();  // set pins to appropriate modes and values
+    calibrate(); // send the calibration byte
+    // send the device the acquistion command byte for unipolar conversion long
+    
 }
 
 uint16_t MAX1132::read()
 {
     int16_t reading{0}; //
-    // take the chip select low to select the device:
-    digitalWrite(ADC_CS_PIN, LOW);
+    // // take the chip select low to select the device:
+    digitalWrite(m_cs_pin, LOW);
     
-    // send the device the acquistion command byte for unipolar conversion long
-    SPI.transfer(READBYTE);
+    SPI1.beginTransaction(adcSettings);
     
-    // discard first reading
-    SPI.transfer(0x00);
-    int16_t highByte = SPI.transfer(0x00);
-    int16_t lowByte = SPI.transfer(0x00);
-    
+    // // send the read byte:
+    SPI1.transfer(m_readbyte);
+
+    // // // discard first reading
+    SPI1.transfer(m_transfer_byte);
+
+    int16_t highByte = SPI1.transfer(m_transfer_byte);
+    int16_t lowByte = SPI1.transfer(m_transfer_byte);
+
     reading |= highByte << 8;
     reading |= lowByte;
-    
-    digitalWrite(ADC_CS_PIN, HIGH);
+
+    digitalWrite(m_cs_pin, HIGH);
+    SPI1.endTransaction();
 
     return reading;
 }

@@ -57,62 +57,17 @@ The command byte to write to the potentiometer is 0b00010001.
 #include "SPI.h"
 #include <led.h>
 
+// LED::LED(std::string led_name, uint8_t led_pin, uint16_t max_source_current, uint16_t max_constant_current, uint16_t max_surge_current, MCP41010& mcp41010, PCF8575& pcf8575){
+//     m_led_pin = led_pin;
+//     m_max_source = max_source_current;
+//     m_max_constant = max_constant_current;
+//     m_max_surge = max_surge_current;
+//     m_mcp41010 = mcp41010;
+//     m_pcf8575 = pcf8575;
 
-
-uint8_t MCP41010::set_value(uint8_t value){
-    // set the value of the potentiometer
-    // also returns the value set
-    // and sets the m_value variable to equal value
-    
-    digitalWrite(m_cs_pin, LOW);
-    SPI.transfer(m_command_byte);
-    SPI.transfer(value);
-    digitalWrite(m_cs_pin, HIGH);
-    
-    m_value = value;
-    
-    return value;
-}
-
-void LED_ARRAY::change_led_state(uint8_t led_num, bool state){
-    if (state){
-        m_leds[led_num].on();
-    }
-    else{
-        m_leds[led_num].off();
-    }
-}
-
-void LED_ARRAY::add(LED led){
-    m_leds.push_back(led);
-}
-
-void LED_ARRAY::set_intensity(uint8_t led_num, uint8_t value, const uint8_t mode){
-    m_leds[led_num].set_intensity(value, mode);
-}
-
-uint8_t MCP41010::get_value(){
-    // returns the current 0-255 value of the potentiometer
-    return m_value;
-}
-
-
-LED::LED(std::string led_name, uint8_t led_pin, uint8_t mcp_cs_pin, uint8_t shunt_pin, uint16_t max_source_current, uint16_t max_constant_current, uint16_t max_surge_current){
-    // initialize the LED object
-    // led_pin: the pin the LED is connected to
-    // mcp_cs_pin: the chip select pin for the MCP41010 digital potentiometer
-    // max_source_current: the max current of the LED source in mA
-    // max_constant_current: the max current of the LED in constant illumination mode in mA
-    // max_surge_current: the max current of the LED in pulse mode in mA
-    m_led_pin = led_pin;
-    m_cs_pin = mcp_cs_pin;
-    m_shunt_pin = shunt_pin;
-    m_max_source = max_source_current;
-    m_max_constant = max_constant_current;
-    m_max_surge = max_surge_current;
-    mcp41010 = MCP41010(m_cs_pin);
-    pinMode(m_led_pin, OUTPUT);
-}
+//     // m_pcf8575.pinMode(m_led_pin, OUTPUT);
+//     // m_pcf8575.digitalWrite(m_led_pin, LOW);
+// }
 
 void LED::calibrate_intensity(uint8_t value){
     // Calibrate the intensity of the LED, as a fraction of the max current allowed
@@ -123,20 +78,15 @@ void LED::calibrate_intensity(uint8_t value){
     // calculate the current needed to set the LED to the given value
 
     // set the current using the digital potentiometer
-    mcp41010.set_value(resistance);
+    mcp41010_.set_value(resistance);
 }
 
-
-
-void LED::on(){
-    // turn the LED on
-   digitalWrite(m_led_pin, HIGH);
+void LED::toggle(bool state){
+    digitalWrite(led_pin_, state);
 }
 
-void LED::off(){
-    // turn the LED off.
-    // intensity will be at whatever the current source is set to.
-    digitalWrite(m_led_pin, LOW);
+const char* LED::get_name(){
+    return led_name_.c_str();
 }
 
 void LED::set_intensity(uint8_t value, const uint8_t mode){
@@ -148,9 +98,9 @@ void LED::set_intensity(uint8_t value, const uint8_t mode){
     int max_current = 0;
  
     if (mode == 0){
-        max_current = m_max_surge;
+        max_current = max_surge_current_;
     } else {
-        max_current = m_max_constant;
+        max_current = max_constant_current_;
     }
 
     int desired_current = (value / 255) * max_current;
@@ -161,7 +111,7 @@ void LED::set_intensity(uint8_t value, const uint8_t mode){
     int resistance = get_resistance_value(desired_current);
 
     // set the current using the digital potentiometer
-    mcp41010.set_value(resistance);
+    mcp41010_.set_value(value);
 };
 
 uint8_t LED::get_resistance_value(uint8_t value){

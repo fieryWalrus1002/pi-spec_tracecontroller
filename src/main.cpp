@@ -1,83 +1,45 @@
+
 #include "main.h"
-#include "pins.h"
 #include "max1132.h"
 #include "led.h"
 
-LED_ARRAY leds;
 
 
-
-
-
-
-
-
-#define OLED_RESET -1
 uint8_t k_push_delay = 10; // delay between data point pushes in us
+MAX1132 adc(MAX_AQ, ADC_CS_PIN, ADC_RST_PIN, ADC_SSTRB_PIN);
+
 elapsedMicros tLast;
-const int aqMode {1};
+
+PCF8575 gpio(GPIO_I2C_ADDR);
+MCP41010 dPotLow(POT1_CS_PIN, gpio);
+MCP41010 dPotHigh(POT2_CS_PIN, gpio);
+std::vector<LED> leds;
+
+enum CURRENT_MODE {CONSTANT, PULSE};
+
+
+uint8_t pot_value = 0;
+bool b_forward = true;
+int ladder_delay = 0; // useless variable for testing digital pots
 long zeroTime = 0;
 bool measureState = false; // state for measurements
 int traceNumber = 0; // the current trace number, index in traceData for current trace data to be placed
-int current_act_intensity = 0;
-
-MAX1132 adc;
-Pins pins; // class to declare and initialize digital pins
-long readInterval = 1000000; // time between display read updates for non measuring state fun measurmeents
-
-int incoming_byte = 0;
 int counter = 0;
 int sat_pulse_begin = 500;
 int sat_pulse_end = 600;
 unsigned int pulse_length = 75; // in uS
-int post_trig_pulse_length = 0;
 unsigned int pulse_interval = 1000; // in uS, so 1000 is 1ms between measurement pulses
 int pulse_mode = 1; // 0 just actinic setting, 1 sat pulse, 2 single turnover
 int meas_led_num = 0;
 int act_led_num = 4;
 int num_points = 1000;
-int trigger_delay = 35;
+uint32_t trigger_delay = 0;
 bool power_state = false; // status of the power switch
-
 int trace_phase = 0;
-uint8_t act_int_phase[] = {0, 0, 0}; // holds the actinic intenisty values for phases 0-2 in uE
-
-typedef enum
-{
-    NONE,
-    GOT_A,
-    GOT_B,
-    GOT_C,
-    GOT_D,
-    GOT_E,
-    GOT_F,
-    GOT_G,
-    GOT_H,
-    GOT_I,
-    GOT_J,
-    GOT_K,
-    GOT_L,
-    GOT_M,
-    GOT_N,
-    GOT_O,
-    GOT_P,
-    GOT_R,
-    GOT_S,
-    GOT_T,
-    GOT_U,
-    GOT_V,
-    GOT_W,
-    GOT_X,
-    GOT_Y,
-    GOT_Z
-} states;
-states state = NONE;
+uint8_t act_int_phase[] = {0, 0, 0}; // holds the actinic intensity values for phases 0-2 in 0-255 values
 int current_value;
 
-
 ////////////////////////////////////////////// functions //////////////////////////////////////////////////////////
-
-
 void execute_trace()
 {
     // set trace variables to initial values
@@ -92,12 +54,14 @@ void execute_trace()
 void handle_act_phase(int trace_num){
     uint8_t desired_value = act_int_phase[trace_num];
     if (desired_value == 0){
-        leds.set_intensity(act_led_num, 0, 1);
-        leds.change_led_state(act_led_num, 0);
+        Serial.println("set intensity to 0");
+        // leds.set_intensity(act_led_num, 0, 1);
+        // leds.change_led_state(act_led_num, 0);
     }
     else{
-        leds.set_intensity(act_led_num, desired_value, 1 );
-        leds.change_led_state(act_led_num, 1);
+        Serial.println("set intensity to " + String(desired_value));
+        // leds.set_intensity(act_led_num, desired_value, 1 );
+        // leds.change_led_state(act_led_num, 1);
     }
 }
 
@@ -119,7 +83,7 @@ void set_pulse_interval(const int value)
 
 void set_vis_led(const int value)
 {
-    meas_led_num = pins.meas_led_array[value];
+    meas_led_num = value;
     send_response("meas_led_num", meas_led_num);
 }
 
@@ -159,7 +123,13 @@ int get_numAq()
     return result;
 }
 
-
+void handle_single_turnover()
+{
+    // set_act_intensity(act_int_phase[trace_phase]);
+    // delay(pulse_length);
+    // set_act_intensity(0);
+    // delay(pulse_interval - pulse_length);
+}
 
 void handle_saturation_pulse(int pulse_mode, int trace_phase)
 {
@@ -174,14 +144,14 @@ void handle_saturation_pulse(int pulse_mode, int trace_phase)
         break;
     case 2:
         // single turnover flash, as quick as we can pulse it
-        digitalWrite(pins.STO_FLASH_PIN, 1);
-        delayMicroseconds(1);
-        digitalWrite(pins.STO_FLASH_PIN, 0);
+        handle_single_turnover();
         break;
     default:
         break;
     }
 }
+
+
 
 void return_params()
 {
@@ -201,6 +171,8 @@ void return_params()
     Serial.print(pulse_interval);
     Serial.print(", meas_led_num=");
     Serial.print(meas_led_num);
+    Serial.print(", meas_led_name=");
+    Serial.print(leds[meas_led_num].get_name());
     Serial.print(", num_points=");
     Serial.print(num_points);
     Serial.print(", pulse_mode=");
@@ -249,12 +221,12 @@ void send_data_point(int wrt_cnt, int trace)
 void set_12v_power(int val){
     if (val >= 1){
         // driving the relay switch low closes the switch
-        digitalWrite(pins.POWER_GATE_PIN, LOW);
+        digitalWrite(POWER_GATE_PIN, LOW);
         power_state = false;
     }
     else
     {
-        digitalWrite(pins.POWER_GATE_PIN, HIGH);
+        digitalWrite(POWER_GATE_PIN, HIGH);
         power_state = true;
     }
     send_response("power_state", power_state);
@@ -277,6 +249,7 @@ void set_debug(){
     if (DEBUG_MODE == false){DEBUG_MODE = true;}else {DEBUG_MODE = false;};
     send_response("DEBUG_MODE", DEBUG_MODE);
 }
+
 
 void handle_action()
 {
@@ -453,15 +426,18 @@ void measurement_pulse(TraceBuffer *buffer, int meas_led)
     Point pnt;
     pnt.time_us[0] = micros() - zeroTime;
 
-    for (int i = 0; i < adc.preaq; i++){
-        pnt.aq[i] = adc.read();   
-    }
+    for (int i = 0; i < adc.m_preaq; i++){
+        pnt.aq[i] = adc.read();    };
 
     pnt.time_us[1] = micros() - zeroTime;
 
-    leds.change_led_state(meas_led, 1);
+    leds[meas_led].toggle(HIGH);
 
-    for (int i = adc.preaq; i < adc.aq + adc.preaq; i++){
+    while ((micros() - zeroTime)  < trigger_delay){
+        delayMicroseconds(1);
+    }
+
+    for (int i = adc.m_preaq; i < adc.m_aq + adc.m_preaq; i++){
         pnt.aq[i] = adc.read();   
     }
 
@@ -471,32 +447,54 @@ void measurement_pulse(TraceBuffer *buffer, int meas_led)
         delayMicroseconds(1);
     }
 
-    leds.change_led_state(meas_led, 0);
+    leds[meas_led].toggle(HIGH);
 
     buffer->data[counter] = pnt;
 }
 
 void cleanupTrace(){
-    pins.meas_led_cleanup();
+    Serial.println("DEBUG: cleanup trace");
+    
+    for (auto& led : leds)
+    {
+        led.toggle(LOW);
+    }
+
     measureState = false;
     trace_phase = 0;
+    Serial.println("DEBUG: cleanup trace complete");
 }
+
+void blink_led(int blinks){
+    for (int i = 0; i < blinks; i++)
+    {
+        gpio.digitalWrite(14, HIGH);
+        delay(100);
+        gpio.digitalWrite(14, LOW);
+        delay(100);
+    }
+}
+
 
 void setup()
 {
     Serial.begin(115200);
-    pins.init();
-    leds.add(LED("520", 5, 6, 7, 1000, 1000, 1000));
-    leds.add(LED("545", 8, 9, 10, 1000, 1000, 1000));
-    leds.add(LED("554", 11, 12, 13, 1000, 1000, 1000));
-    leds.add(LED("563", 14, 15, 16, 1000, 1000, 1000));
-    leds.add(LED("563", 14, 15, 16, 1000, 1000, 1000));
-    leds.add(LED("572", 17, 18, 19, 1000, 1000, 1000));
-    leds.add(LED("630", 2, 3, 4, 1000, 1000, 1000));
-    leds.add(LED("740", 23, 24, 25, 1000, 1000, 1000));
-    leds.add(LED("810", 20, 21, 22, 1000, 1000, 1000));
-    leds.add(LED("940", 23, 24, 25, 1000, 1000, 1000));
-    adc.init(MAX_AQ);
+    SPI.begin();
+    dPotHigh.begin();
+    dPotLow.begin();
+    gpio.begin();
+
+    leds.push_back(LED("none", 0, 1400, 300, 1400, dPotLow));
+    leds.push_back(LED("520", 33, 1400, 300, 750, dPotHigh));
+    leds.push_back(LED("545", 20, 500, 300, 750, dPotLow));
+    leds.push_back(LED("554", 21, 500, 300, 750, dPotLow));
+    leds.push_back(LED("563", 22, 500, 300, 750, dPotLow));
+    leds.push_back(LED("572", 23, 500, 300, 750, dPotLow));
+    leds.push_back(LED("740", 17, 500, 300, 50, dPotLow));
+    leds.push_back(LED("800", 15, 500, 300, 50, dPotLow));
+    leds.push_back(LED("900", 16, 500, 300, 50, dPotLow));
+    leds.push_back(LED("actinic1", 34, 1400, 300, 1400, dPotHigh));
+
     counter = num_points + 1;
 }
 
@@ -509,29 +507,72 @@ void pinTest(int pinNumber){
     }
 }
 
+uint16_t test_measurement(bool measurement = true){
+    
+    uint16_t value = 1;
+
+    if (measurement){
+        value = adc.read();
+        return value;
+    } else
+    {
+        return value;
+    }
+}
+
+/// @brief test an KED LED by toggling it on and off a number of times with a given intensity
+/// @param led_num the array number of the LED to test
+/// @param i the intensity, 0-255 given to thje digital potentiometer
+/// @param n the number of times to toggle the LED on and off
+void test_led(int led_num, int i, int n){
+    leds[led_num].set_intensity(i, PULSE);
+    delayMicroseconds(50);
+    for (int j = 0; j < n; j++){
+        leds[led_num].toggle(HIGH);
+        delayMicroseconds(50);
+        leds[led_num].toggle(LOW);
+        delayMicroseconds(250);
+    }
+}
+
 void loop()
 {   
-    while (Serial.available())
+    int minVal = 80;
+    int maxVal = 140;
+
+    if (Serial.available())
     {
         process_inc_byte(Serial.read());
     }
 
-    if (counter <= num_points)
-    {
-        if (tLast > pulse_interval){
-                if ((counter == sat_pulse_begin) | (counter == sat_pulse_end))
-                {
-                    trace_phase++;
-                    handle_act_phase(trace_phase);
-                }
 
-            tLast = 0;
-            measurement_pulse(ptr_buffer, meas_led_num);
-            counter++;
-        }
-    }
+for (int i = minVal; i <= maxVal; i++){
+    test_led(3, i, 100);
+};
 
-    if (counter > num_points && measureState == true){
-        cleanupTrace();
-    }
+for (int i = maxVal; i >= minVal; i--){
+    test_led(3, i, 100);
+};
+
+
+
+    // if (counter <= num_points)
+    // {
+
+    //     if (tLast > pulse_interval){
+    //             if ((counter == sat_pulse_begin) | (counter == sat_pulse_end))
+    //             {
+    //                 trace_phase++;
+    //                 handle_act_phase(trace_phase);
+    //             }
+
+    //         tLast = 0;
+    //         measurement_pulse(ptr_buffer, meas_led_num);
+    //         counter++;
+    //     }
+    // }
+
+    // if (counter > num_points && measureState == true){
+    //     cleanupTrace();
+    // }
 }

@@ -1,15 +1,38 @@
-// int getMcpVal(int x){
-//     // take a desired light intensity in uE, and calculate the the 16-bit value 
-//     // that will be send to the MCP40101 digital potentiometer
-//     // The zero_offset global variable is used to bring it to a real zero at x=0.
+#include <mcp41010.h>
 
-//     unsigned int mcpVal = 0;
+void MCP41010::begin(){
+    // begin the SPI1 interface
+    // m_pcf8575.pinMode(m_cs_pin, OUTPUT);
+    // m_pcf8575.digitalWrite(m_cs_pin, HIGH);
+    pinMode(m_cs_pin, OUTPUT);
+    digitalWrite(m_cs_pin, HIGH);
+    SPI.begin();
+    set_value(0);
+}
 
-//     if (x > 0){
-//         mcpVal = 2E-05 * pow(x, 2) + 0.047 * x + zero_offset;
-//     }
-//     if (mcpVal > 255){
-//         mcpVal = 255;
-//     }
-//     return mcpVal;
-// }
+uint8_t MCP41010::get_value(){
+    // returns the current 0-255 value of the potentiometer
+    return m_value;
+}
+
+uint8_t MCP41010::set_value(uint8_t value){
+    // set the value of the potentiometer
+    // also returns the value set
+    // and sets the m_value variable to equal value
+    SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
+    digitalWrite(m_cs_pin, LOW);
+    SPI.transfer(m_command_byte);
+    SPI.transfer(value);
+    digitalWrite(m_cs_pin, HIGH);
+    SPI.endTransaction();
+    
+    m_value = value;
+    
+    return value;
+}
+
+void MCP41010::csToggle(bool state){
+    // toggle the chip select pin to the state specified
+    // m_pcf8575.digitalWrite(m_cs_pin, state);   
+    digitalWrite(m_cs_pin, state);
+}

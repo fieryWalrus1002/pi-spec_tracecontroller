@@ -5,6 +5,8 @@
 #include <vector>
 #include <iostream>
 #include <string>
+#include <mcp41010.h>
+#include <PCF8575.h>
 
 // #include <Wire>
 
@@ -19,54 +21,37 @@
 
 // const int ADC_DELAY = 0; // number of microseconds to wait before pulling data from ADC. 
 
-
-class MCP41010
-{  
-
+/// @brief Class to hold LED implementation details
+/// @details This class is used to hold the implementation details of the LED class. It can turn on the led and turn it off.
+/// @param led_name The name of the LED. Usuually wavelength in nm.
+/// @param led_pin The microcontroller pin that the LED gate is connected to. 
+/// @param max_source_current The maximum current that the LED can source, in mA.
+/// @param max_constant_current The maximum current that the LED can source in constant current mode, in mA.
+/// @param max_surge_current The maximum current that the LED can source in pulse mode, in mA.
+/// @param mcp41010 The MCP41010 digital potentiometer used to set the LED current.
+/// @param pcf8575 The PCF8575 I/O expander used to control the LED gate.
+class LED {
 public:
-    MCP41010(uint8_t cs_pin) {m_cs_pin = cs_pin; }
-    uint8_t set_value(uint8_t value);    
-    uint8_t get_value();
-private:
-    uint8_t m_cs_pin;
-    uint8_t m_command_byte = 0b00010001;
-    uint8_t m_value = 0;
-};
-
-class LED
-{  
-public:
-    LED(std::string led_name, uint8_t led_pin, uint8_t mcp_cs_pin, uint8_t shunt_pin, uint16_t max_source_current, uint16_t max_constant_current, uint16_t max_surge_current);
-    void set_intensity(uint8_t value, const uint8_t mode);   
-    void on();
-    void off();
-private:
-    uint8_t m_led_pin;
-    uint8_t m_cs_pin;
-    uint8_t m_shunt_pin;
-    int m_max_source;
-    int m_max_constant;
-    int m_max_surge;
-    MCP41010 mcp41010 = MCP41010(m_cs_pin);
-    uint8_t get_resistance_value(uint8_t value);
+    LED(std::string led_name, uint8_t led_pin, uint16_t max_source_current, uint16_t max_constant_current,
+        uint16_t max_surge_current, MCP41010& mcp41010)
+        : led_name_(led_name), led_pin_(led_pin), max_source_current_(max_source_current),
+          max_constant_current_(max_constant_current), max_surge_current_(max_surge_current),
+          mcp41010_(mcp41010) {pinMode(led_pin_, OUTPUT);}
+    void toggle(bool state);
     void calibrate_intensity(uint8_t value);
+    void set_intensity(uint8_t value, const uint8_t mode);
+    uint8_t get_resistance_value(uint8_t value);
+    const char* get_name();
+
+    private:
+    std::string led_name_;
+    uint8_t led_pin_;
+    uint16_t max_source_current_;
+    uint16_t max_constant_current_;
+    uint16_t max_surge_current_;
+    MCP41010& mcp41010_;
+    
+    
 };
-
-class LED_ARRAY
-{
-public:
-    void add(LED led);
-    void change_led_state(uint8_t led_num, bool state);
-    void set_intensity(uint8_t led_num, uint8_t value, const uint8_t mode);
-private:
-    std::vector<LED> m_leds;
-    uint8_t m_meas_led;
-    uint8_t m_act_led;
-};
-
-
-
-
-
 
 #endif
