@@ -33,19 +33,21 @@
 class LED {
 public:
     LED(std::string led_name, uint8_t led_pin, uint16_t max_source_current, uint16_t max_constant_current,
-        uint16_t max_surge_current, MCP41010& mcp41010)
+        uint16_t max_surge_current, MCP41010& mcp41010, uint8_t led_intensity=0)
         : led_name_(led_name), led_pin_(led_pin), max_source_current_(max_source_current),
           max_constant_current_(max_constant_current), max_surge_current_(max_surge_current),
-          mcp41010_(mcp41010) {pinMode(led_pin_, OUTPUT);}
+          mcp41010_(mcp41010), m_current_intensity(led_intensity) {pinMode(led_pin_, OUTPUT);}
     void toggle(bool state);
     void calibrate_intensity(uint8_t value);
     void set_intensity(uint8_t value, const uint8_t mode);
     uint8_t get_resistance_value(uint8_t value);
     const char* get_name();
-
+    uint8_t get_intensity(){return m_current_intensity;};
+    
     private:
     std::string led_name_;
     uint8_t led_pin_;
+    uint8_t m_current_intensity; 
     uint16_t max_source_current_;
     uint16_t max_constant_current_;
     uint16_t max_surge_current_;

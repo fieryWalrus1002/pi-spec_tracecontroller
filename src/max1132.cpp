@@ -147,22 +147,22 @@ uint16_t MAX1132::read()
     // // take the chip select low to select the device:
     digitalWrite(m_cs_pin, LOW);
     
-    SPI1.beginTransaction(adcSettings);
+    SPI.beginTransaction(adcSettings);
     
     // // send the read byte:
-    SPI1.transfer(m_readbyte);
+    SPI.transfer(m_readbyte);
 
     // // // discard first reading
-    SPI1.transfer(m_transfer_byte);
+    SPI.transfer(m_transfer_byte);
 
-    int16_t highByte = SPI1.transfer(m_transfer_byte);
-    int16_t lowByte = SPI1.transfer(m_transfer_byte);
+    int16_t highByte = SPI.transfer(m_transfer_byte);
+    int16_t lowByte = SPI.transfer(m_transfer_byte);
 
     reading |= highByte << 8;
     reading |= lowByte;
 
     digitalWrite(m_cs_pin, HIGH);
-    SPI1.endTransaction();
+    SPI.endTransaction();
 
     return reading;
 }

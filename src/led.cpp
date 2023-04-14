@@ -112,6 +112,7 @@ void LED::set_intensity(uint8_t value, const uint8_t mode){
 
     // set the current using the digital potentiometer
     mcp41010_.set_value(value);
+    m_current_intensity = value;
 };
 
 uint8_t LED::get_resistance_value(uint8_t value){
