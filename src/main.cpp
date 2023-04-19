@@ -4,7 +4,6 @@
 #include <led.h>
 #include <current_monitor.h>
 
-
 uint8_t k_push_delay = 10; // delay between data point pushes in us
 std::vector<LED> leds;
 MAX1132 adc(MAX_AQ, ADC_CS_PIN, ADC_RST_PIN, ADC_SSTRB_PIN);
@@ -14,7 +13,6 @@ MCP41010 dPotLow(POT1_CS_PIN, gpio);
 MCP41010 dPotHigh(POT2_CS_PIN, gpio);
 Adafruit_SSD1306 display(LCD_WIDTH, LCD_HEIGHT, &Wire, LCD_RESET_PIN);
 CurrentMonitor currentMonitor(MUX_A0_PIN, MUX_A1_PIN, MUX_A2_PIN, MUX_OUTPUT_PIN, MUX_HIGH_ENABLE_PIN, MUX_LOW_ENABLE_PIN);
-
 
 ////////////////////////////////////////////// functions //////////////////////////////////////////////////////////
 void execute_trace()
@@ -28,17 +26,21 @@ void execute_trace()
     handle_act_phase(trace_phase);
 }
 
-void handle_act_phase(int trace_num){
+void handle_act_phase(int trace_num)
+{
     uint8_t desired_value = act_int_phase[trace_num];
-    if (desired_value == 0){
+    if (desired_value == 0)
+    {
         leds[actinic_led_num].set_intensity(0, 0);
     }
-    else{
+    else
+    {
         leds[actinic_led_num].set_intensity(desired_value, 0);
     }
 }
 
-void display_i_value(int input_value, int i){
+void display_i_value(int input_value, int i)
+{
     // Display the value on the LCD
     display.setCursor(0, i * 8);
     display.print("Input ");
@@ -46,26 +48,24 @@ void display_i_value(int input_value, int i){
     display.print(": ");
     display.print(input_value);
 
-  // Update the display
-  display.display();
+    // Update the display
+    display.display();
 
-  // Repeat the loop
-  delay(1000);
+    // Repeat the loop
+    delay(1000);
 }
-
-
 
 void set_num_points(const int value)
 {
     counter = value + 1;
     num_points = value;
-    send_response("num_points",num_points);
+    send_response("num_points", num_points);
 }
 
 void set_pulse_interval(const int value)
 {
     pulse_interval = value;
-    send_response("pulse_interval",pulse_interval);
+    send_response("pulse_interval", pulse_interval);
 }
 
 void set_vis_led(const int value)
@@ -76,7 +76,7 @@ void set_vis_led(const int value)
 
 void set_pulse_length(const int value)
 {
-    pulse_length = value;    
+    pulse_length = value;
     send_response("pulse_length", pulse_length);
 }
 
@@ -101,7 +101,7 @@ void set_phase_act_value(const int value, int phase_num)
 int get_numPreAq()
 {
     int result = MAX_AQ / 3;
-    return(result);
+    return (result);
 }
 
 int get_numAq()
@@ -138,8 +138,6 @@ void handle_saturation_pulse(int pulse_mode, int trace_phase)
     }
 }
 
-
-
 void return_params()
 {
     Serial.print("counter=");
@@ -174,11 +172,12 @@ void return_params()
     Serial.print(", trigger_delay=");
     Serial.print(trigger_delay);
     Serial.println(";");
-
 }
 
-void pushData(int whichTraceBuffer){
-    for (int i = 0; i <= num_points; i++){
+void pushData(int whichTraceBuffer)
+{
+    for (int i = 0; i <= num_points; i++)
+    {
         send_data_point(i, whichTraceBuffer);
         delayMicroseconds(k_push_delay);
     }
@@ -197,16 +196,19 @@ void send_data_point(int wrt_cnt, int trace)
         Serial.print(",");
         Serial.print(traceData[0].data[wrt_cnt].time_us[0]);
 
-        for (int i = 0; i < MAX_AQ; i++){
-            Serial.print(", ");    
+        for (int i = 0; i < MAX_AQ; i++)
+        {
+            Serial.print(", ");
             Serial.print(traceData[trace].data[wrt_cnt].aq[i]);
         }
         Serial.println("");
     }
 }
 
-void set_12v_power(int val){
-    if (val >= 1){
+void set_12v_power(int val)
+{
+    if (val >= 1)
+    {
         // driving the relay switch low closes the switch
         digitalWrite(POWER_GATE_PIN, LOW);
         power_state = false;
@@ -219,24 +221,32 @@ void set_12v_power(int val){
     send_response("power_state", power_state);
 }
 
-void send_response(auto respcode, auto val){
+void send_response(auto respcode, auto val)
+{
     /* send a chararacter array and a value back across serial to acknowledge receipt
-        of the command. 
+        of the command.
     */
-    if (DEBUG_MODE == true){
+    if (DEBUG_MODE == true)
+    {
         Serial.print(respcode);
         Serial.print(":");
         Serial.print(val);
         Serial.println(";");
     }
-    
 }
 
-void set_debug(){
-    if (DEBUG_MODE == false){DEBUG_MODE = true;}else {DEBUG_MODE = false;};
+void set_debug()
+{
+    if (DEBUG_MODE == false)
+    {
+        DEBUG_MODE = true;
+    }
+    else
+    {
+        DEBUG_MODE = false;
+    };
     send_response("DEBUG_MODE", DEBUG_MODE);
 }
-
 
 void handle_action()
 {
@@ -316,8 +326,8 @@ void process_inc_byte(const byte c)
 {
     if (isdigit(c))
     {
-            current_value *= 10;
-            current_value += c - '0';
+        current_value *= 10;
+        current_value += c - '0';
     } // end of digit
     else
     {
@@ -419,26 +429,29 @@ void measurement_pulse(TraceBuffer *buffer, int meas_led)
     Point pnt;
     pnt.time_us[0] = micros() - zeroTime;
 
+    for (int i = 0; i < adc.m_preaq; i++)
+    {
+        pnt.aq[i] = adc.read();
+    };
 
-    for (int i = 0; i < adc.m_preaq; i++){
-        pnt.aq[i] = adc.read();    };
-
-    
     pnt.time_us[1] = micros() - zeroTime;
 
     leds[meas_led].toggle(HIGH);
 
-    while ((micros() - zeroTime)  < trigger_delay){
+    while ((micros() - zeroTime) < trigger_delay)
+    {
         delayMicroseconds(1);
     }
 
-    for (int i = adc.m_preaq; i < adc.m_aq + adc.m_preaq; i++){
-        pnt.aq[i] = adc.read();   
+    for (int i = adc.m_preaq; i < adc.m_aq + adc.m_preaq; i++)
+    {
+        pnt.aq[i] = adc.read();
     }
 
     pnt.time_us[2] = micros() - zeroTime;
 
-    while ((micros() - pnt.time_us[0])  < pulse_length){
+    while ((micros() - pnt.time_us[0]) < pulse_length)
+    {
         delayMicroseconds(1);
     }
 
@@ -447,19 +460,20 @@ void measurement_pulse(TraceBuffer *buffer, int meas_led)
     buffer->data[counter] = pnt;
 }
 
-void cleanupTrace(){
-    
-    for (auto& led : leds)
+void cleanupTrace()
+{
+
+    for (auto &led : leds)
     {
         led.toggle(LOW);
     }
 
     measureState = false;
     trace_phase = 0;
-
 }
 
-void blink_led(int blinks){
+void blink_led(int blinks)
+{
     for (int i = 0; i < blinks; i++)
     {
         gpio.digitalWrite(14, HIGH);
@@ -468,7 +482,6 @@ void blink_led(int blinks){
         delay(100);
     }
 }
-
 
 void setup()
 {
@@ -500,8 +513,10 @@ void setup()
     counter = num_points + 1;
 }
 
-void pinTest(int pinNumber){
-    for (int i = 0; i < num_points; i++){
+void pinTest(int pinNumber)
+{
+    for (int i = 0; i < num_points; i++)
+    {
         digitalWrite(pinNumber, HIGH);
         delayMicroseconds(pulse_length);
         digitalWrite(pinNumber, LOW);
@@ -509,14 +524,17 @@ void pinTest(int pinNumber){
     }
 }
 
-uint16_t test_measurement(bool measurement = true){
-    
+uint16_t test_measurement(bool measurement = true)
+{
+
     uint16_t value = 1;
 
-    if (measurement){
+    if (measurement)
+    {
         value = adc.read();
         return value;
-    } else
+    }
+    else
     {
         return value;
     }
@@ -526,10 +544,12 @@ uint16_t test_measurement(bool measurement = true){
 /// @param led_num the array number of the LED to test
 /// @param i the intensity, 0-255 given to thje digital potentiometer
 /// @param n the number of times to toggle the LED on and off
-void test_led(int led_num, int i, int n){
+void test_led(int led_num, int i, int n)
+{
     leds[led_num].set_intensity(i, PULSE);
     delayMicroseconds(50);
-    for (int j = 0; j < n; j++){
+    for (int j = 0; j < n; j++)
+    {
         leds[led_num].toggle(HIGH);
         delayMicroseconds(50);
         leds[led_num].toggle(LOW);
@@ -540,10 +560,12 @@ void test_led(int led_num, int i, int n){
 /// @brief test an KED LED by toggling it on and off a number of times with a given intensity
 /// @param led_num the array number of the LED to test
 /// @param n the number of times to toggle the LED on and off
-void test_led(int led_num, int n){
+void test_led(int led_num, int n)
+{
     leds[led_num].set_intensity(leds[led_num].get_intensity(), PULSE);
     delayMicroseconds(50);
-    for (int j = 0; j < n; j++){
+    for (int j = 0; j < n; j++)
+    {
         leds[led_num].toggle(HIGH);
         delayMicroseconds(50);
         leds[led_num].toggle(LOW);
@@ -552,44 +574,45 @@ void test_led(int led_num, int n){
 }
 
 void loop()
-{   
+{
     if (Serial.available())
     {
         process_inc_byte(Serial.read());
     }
 
-
-    for (int i = 1; i <= 9; i++)
-    {   
-        Serial.println("Channel: " + String(i));
-        display.clearDisplay();
-        display.setCursor(0, 0);
-        display.setTextSize(1);
-        display.setTextColor(WHITE);
-        display.print("Channel: " + String(i));
-        display.setCursor(0, 10);
-        display.print(currentMonitor.get_current(i));
-        display.display();
-        delay(1000);
-    }
-    
-    // if (counter <= num_points)
+    // for (int i = 1; i <= 9; i++)
     // {
-
-    //     if (tLast > pulse_interval){
-    //             if ((counter == sat_pulse_begin) | (counter == sat_pulse_end))
-    //             {
-    //                 trace_phase++;
-    //                 handle_act_phase(trace_phase);
-    //             }
-
-    //         tLast = 0;
-    //         measurement_pulse(ptr_buffer, meas_led_num);
-    //         counter++;
-    //     }
+    //     Serial.println("Channel: " + String(i));
+    //     display.clearDisplay();
+    //     display.setCursor(0, 0);
+    //     display.setTextSize(1);
+    //     display.setTextColor(WHITE);
+    //     display.print("Channel: " + String(i));
+    //     display.setCursor(0, 10);
+    //     display.print(currentMonitor.get_current(i));
+    //     display.display();
+    //     delay(1000);
     // }
 
-    // if (counter > num_points && measureState == true){
-    //     cleanupTrace();
-    // }
+    if (counter <= num_points)
+    {
+
+        if (tLast > pulse_interval)
+        {
+            if ((counter == sat_pulse_begin) | (counter == sat_pulse_end))
+            {
+                trace_phase++;
+                handle_act_phase(trace_phase);
+            }
+
+            tLast = 0;
+            measurement_pulse(ptr_buffer, meas_led_num);
+            counter++;
+        }
+    }
+
+    if (counter > num_points && measureState == true)
+    {
+        cleanupTrace();
+    }
 }
