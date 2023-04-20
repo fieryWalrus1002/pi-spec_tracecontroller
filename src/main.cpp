@@ -2,17 +2,20 @@
 #include <main.h>
 #include <max1132.h>
 #include <led.h>
-#include <current_monitor.h>
+// #include <teensy_mcp23017.h>
+#include <Adafruit_MCP23X17.h>
 
 uint8_t k_push_delay = 10; // delay between data point pushes in us
 std::vector<LED> leds;
 MAX1132 adc(MAX_AQ, ADC_CS_PIN, ADC_RST_PIN, ADC_SSTRB_PIN);
 elapsedMicros tLast;
-PCF8575 gpio(GPIO_I2C_ADDR);
-MCP41010 dPotLow(POT1_CS_PIN, gpio);
-MCP41010 dPotHigh(POT2_CS_PIN, gpio);
-Adafruit_SSD1306 display(LCD_WIDTH, LCD_HEIGHT, &Wire, LCD_RESET_PIN);
-CurrentMonitor currentMonitor(MUX_A0_PIN, MUX_A1_PIN, MUX_A2_PIN, MUX_OUTPUT_PIN, MUX_HIGH_ENABLE_PIN, MUX_LOW_ENABLE_PIN);
+MCP41010 dPotLow(POT1_CS_PIN);
+MCP41010 dPotHigh(POT2_CS_PIN);
+// Adafruit_SSD1306 display(LCD_WIDTH, LCD_HEIGHT, &Wire, LCD_RESET_PIN);
+// CurrentMonitor currentMonitor(MUX_A0_PIN, MUX_A1_PIN, MUX_A2_PIN, MUX_OUTPUT_PIN, MUX_HIGH_ENABLE_PIN, MUX_LOW_ENABLE_PIN);
+// Adafruit_MCP23X17 mcp;
+Adafruit_MCP23X17 mcp;
+
 
 ////////////////////////////////////////////// functions //////////////////////////////////////////////////////////
 void execute_trace()
@@ -39,21 +42,21 @@ void handle_act_phase(int trace_num)
     }
 }
 
-void display_i_value(int input_value, int i)
-{
-    // Display the value on the LCD
-    display.setCursor(0, i * 8);
-    display.print("Input ");
-    display.print(i);
-    display.print(": ");
-    display.print(input_value);
+// void display_i_value(int input_value, int i)
+// {
+//     // Display the value on the LCD
+//     display.setCursor(0, i * 8);
+//     display.print("Input ");
+//     display.print(i);
+//     display.print(": ");
+//     display.print(input_value);
 
-    // Update the display
-    display.display();
+//     // Update the display
+//     display.display();
 
-    // Repeat the loop
-    delay(1000);
-}
+//     // Repeat the loop
+//     delay(1000);
+// }
 
 void set_num_points(const int value)
 {
@@ -472,46 +475,23 @@ void cleanupTrace()
     trace_phase = 0;
 }
 
-void blink_led(int blinks)
-{
-    for (int i = 0; i < blinks; i++)
-    {
-        gpio.digitalWrite(14, HIGH);
-        delay(100);
-        gpio.digitalWrite(14, LOW);
-        delay(100);
-    }
-}
+// /// @brief Display helper
+// void display_clear()
+// {
+//     display.clearDisplay();
+//     display.setTextSize(1);
+//     display.setTextColor(WHITE);
+//     display.setCursor(0, 0);
+// }
 
-void setup()
-{
-    Serial.begin(115200);
-    SPI.begin();
-    dPotHigh.begin();
-    dPotLow.begin();
-    gpio.begin();
+// /// @brief display short message
+// void display_message(String message)
+// {
+//     display_clear();
+//     display.print(message);
+//     display.display();
+// }
 
-    // Initialize the display
-    if (!display.begin(SSD1306_SWITCHCAPVCC, LCD_I2C_ADDR))
-    {
-        Serial.println(F("SSD1306 allocation failed"));
-        for (;;)
-            ; // Don't proceed, loop forever
-    }
-
-    leds.push_back(LED("none", 0, 1400, 300, 1400, dPotLow));
-    leds.push_back(LED("520", 33, 1400, 300, 750, dPotHigh));
-    leds.push_back(LED("545", 20, 500, 300, 750, dPotLow));
-    leds.push_back(LED("554", 21, 500, 300, 750, dPotLow));
-    leds.push_back(LED("563", 22, 500, 300, 750, dPotLow));
-    leds.push_back(LED("572", 23, 500, 300, 750, dPotLow));
-    leds.push_back(LED("740", 17, 500, 300, 50, dPotLow));
-    leds.push_back(LED("800", 15, 500, 300, 50, dPotLow));
-    leds.push_back(LED("900", 16, 500, 300, 50, dPotLow));
-    leds.push_back(LED("actinic1", 34, 1400, 300, 1400, dPotHigh));
-
-    counter = num_points + 1;
-}
 
 void pinTest(int pinNumber)
 {
@@ -557,6 +537,8 @@ void test_led(int led_num, int i, int n)
     }
 }
 
+
+
 /// @brief test an KED LED by toggling it on and off a number of times with a given intensity
 /// @param led_num the array number of the LED to test
 /// @param n the number of times to toggle the LED on and off
@@ -573,27 +555,44 @@ void test_led(int led_num, int n)
     }
 }
 
+void setup()
+{
+    Serial.begin(115200);
+    SPI.begin();
+    dPotHigh.begin();
+    dPotLow.begin();
+    // display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+    // display_message("Starting up...");
+    
+    mcp.begin_I2C(0x20, &Wire);
+    delay(1000);
+    
+
+    mcp.pinMode(7, OUTPUT);
+    // display_message("MCP23017 started");
+
+    leds.push_back(LED("none", 0, 1400, 300, 1400, dPotLow));
+    leds.push_back(LED("520", 33, 1400, 300, 750, dPotHigh));
+    leds.push_back(LED("545", 20, 500, 300, 750, dPotLow));
+    leds.push_back(LED("554", 21, 500, 300, 750, dPotLow));
+    leds.push_back(LED("563", 22, 500, 300, 750, dPotLow));
+    leds.push_back(LED("572", 23, 500, 300, 750, dPotLow));
+    leds.push_back(LED("740", 17, 500, 300, 50, dPotLow));
+    leds.push_back(LED("800", 15, 500, 300, 50, dPotLow));
+    leds.push_back(LED("900", 16, 500, 300, 50, dPotLow));
+    leds.push_back(LED("actinic1", 34, 1400, 300, 1400, dPotHigh));
+
+    counter = num_points + 1;
+}
+
+
 void loop()
 {
     if (Serial.available())
     {
         process_inc_byte(Serial.read());
     }
-
-    // for (int i = 1; i <= 9; i++)
-    // {
-    //     Serial.println("Channel: " + String(i));
-    //     display.clearDisplay();
-    //     display.setCursor(0, 0);
-    //     display.setTextSize(1);
-    //     display.setTextColor(WHITE);
-    //     display.print("Channel: " + String(i));
-    //     display.setCursor(0, 10);
-    //     display.print(currentMonitor.get_current(i));
-    //     display.display();
-    //     delay(1000);
-    // }
-
+   
     if (counter <= num_points)
     {
 

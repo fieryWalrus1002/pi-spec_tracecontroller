@@ -2,7 +2,7 @@
 #define _MCP41010_H
 #include <Arduino.h>
 #include <SPI.h>
-#include <PCF8575.h>
+// #include <PCF8575.h>
 
 ///
 
@@ -22,7 +22,7 @@
 class MCP41010
 {
 public:
-    MCP41010(const uint8_t cs_pin, PCF8575& pcf8575) : m_cs_pin(cs_pin), m_pcf8575(pcf8575) {};
+    MCP41010(const uint8_t cs_pin) : m_cs_pin(cs_pin) {};
     uint8_t set_value(uint8_t value);
     uint8_t get_value();
     void begin();
@@ -31,7 +31,7 @@ private:
     uint8_t m_value;
     void csToggle(bool state);
     static const uint8_t m_command_byte{0x11};
-    PCF8575 &m_pcf8575;
+    // PCF8575 &m_pcf8575;
 };
 
 
