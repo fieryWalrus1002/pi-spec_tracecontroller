@@ -69,17 +69,17 @@ The command byte to write to the potentiometer is 0b00010001.
 //     // m_pcf8575.digitalWrite(m_led_pin, LOW);
 // }
 
-void LED::calibrate_intensity(uint8_t value)
+void LED::calibrateIntensity(uint8_t value)
 {
-    // Calibrate the intensity of the LED, as a fraction of the max current allowed
-    // by the mode selected.
+    // // Calibrate the intensity of the LED, as a fraction of the max current allowed
+    // // by the mode selected.
 
-    // calculate the resistance needed to set the LED to the desired current (in mA)
-    uint8_t resistance = get_resistance_value(value);
-    // calculate the current needed to set the LED to the given value
+    // // calculate the resistance needed to set the LED to the desired current (in mA)
+    // uint8_t resistance = getResistanceValue(value);
+    // // calculate the current needed to set the LED to the given value
 
-    // set the current using the digital potentiometer
-    mcp41010->set_value(resistance);
+    // // set the current using the digital potentiometer
+    // mcp41010->setValue(resistance);
 }
 
 void LED::toggle(bool state)
@@ -87,46 +87,40 @@ void LED::toggle(bool state)
     digitalWrite(led_pin, state);
 }
 
-const char *LED::get_name()
+void LED::turnOn()
+{
+    digitalWrite(led_pin, HIGH);
+}
+
+void LED::turnOff()
+{
+    digitalWrite(led_pin, LOW);
+}
+
+const char *LED::getName()
 {
     return led_name.c_str();
 }
 
-void LED::set_intensity(uint8_t value, const uint8_t mode)
+uint8_t LED::setIntensity(const uint8_t value, const uint8_t mode)
 {
-    // Set the intensity of the LED, as a fraction of the max current allowed
-    // by the mode selected.
-    // value: 0-255, fraction of max current
-    // mode: 1 for constant illumination, 0 for pulse mode
-
-    int max_current = 0;
-
-    if (mode == 0)
-    {
-        max_current = max_surge_current;
-    }
-    else
-    {
-        max_current = max_constant_current;
-    }
-
-    // int desired_current = (value / 255) * max_current;
-
-    // calculate the resistance needed to set the LED to the desired current (in mA)
-
-    // calculate the current needed to set the LED to the given value
-    // int resistance = get_resistance_value(desired_current);
-    // set the current using the digital potentiometer
-    mcp41010->set_value(value);
-    m_current_intensity = value;
+    uint8_t desiredResistance = getResistanceValue(value, mode);
+    m_current_intensity = mcp41010->setValue(desiredResistance);
+    return m_current_intensity;
 };
 
-uint8_t LED::get_resistance_value(uint8_t value)
+/**
+ * @brief Takes a desired intensity value from zero to max allowed intensity based
+ * on the LED's capabilites.
+ * @param mode 0 is pulsed, constant is 1.
+ * @param value 0-255, fraction of max intensity
+ * @return resistance the 0-255 value to give to the MCP41010 digital pot
+ * in order to get the desired intensity.
+ */
+uint8_t LED::getResistanceValue(const uint8_t value, const uint8_t mode)
 {
-    // calculate the resistance needed to set the LED to the given current (in mA)
-    // given the 0-255 desired intensity value
-    int resistance = 0;
-    return resistance;
+    // not implemented
+    return value;
 }
 
 /**
@@ -164,4 +158,21 @@ std::shared_ptr<std::vector<LED>> getLedArray(const std::vector<LedData> &ledDat
 
     // now return the shared ptr
     return leds;
+}
+
+/**
+ * @brief Take a string in the form of "625" representing the wavelenght of an LED. Find the
+ * corresponding LED in the vector of LED objects and return the index of that LED in the vector.
+ * @return uint8_t index of the LED in the vector if present, else 0
+ */
+uint8_t getLedNum(std::string ledNm, std::shared_ptr<std::vector<LED>> leds)
+{
+    for (size_t i = 0; i < leds->size(); ++i)
+    {
+        if ((*leds)[i].led_name == ledNm)
+        {
+            return static_cast<uint8_t>(i);
+        }
+    }
+    return 0; // no matching LED found
 }

@@ -30,7 +30,8 @@ struct LedData
 class LED
 {
 public:
-    LED(const LedData &ledData) : led_pin(ledData.led_pin),
+    LED(const LedData &ledData) : led_name(ledData.led_name),
+                                  led_pin(ledData.led_pin),
                                   shunt_pin(ledData.shunt_pin),
                                   max_source_current(ledData.max_source_current),
                                   max_constant_current(ledData.max_constant_current),
@@ -38,27 +39,31 @@ public:
                                   mcp41010(std::make_shared<MCP41010>(ledData.pot_cs_pin))
     {
         pinMode(led_pin, OUTPUT);
-    }
+        pinMode(shunt_pin, INPUT);
+    };
 
     void toggle(bool state);
-    void calibrate_intensity(uint8_t value);
-    void set_intensity(uint8_t value, const uint8_t mode);
-    uint8_t get_resistance_value(uint8_t value);
-    const char *get_name();
-    uint8_t get_intensity() { return m_current_intensity; };
+    void calibrateIntensity(uint8_t value);
+    uint8_t setIntensity(const uint8_t value, const uint8_t mode);
+    uint8_t getResistanceValue(const uint8_t value, const uint8_t mode);
+    const char *getName();
+    uint8_t getIntensity() { return m_current_intensity; };
     const char *ledPinToString();
     int getShuntVoltage();
+    void turnOn();
+    void turnOff();
 
-    std::string led_name;
-    uint8_t led_pin;
-    uint8_t shunt_pin;
-    uint16_t max_source_current;
-    uint16_t max_constant_current;
-    uint16_t max_surge_current;
-    uint8_t m_current_intensity;
+    std::string led_name{"_"};
+    uint8_t led_pin{0};
+    uint8_t shunt_pin{0};
+    uint16_t max_source_current{0};
+    uint16_t max_constant_current{0};
+    uint16_t max_surge_current{0};
+    uint8_t m_current_intensity{0};
 
 private:
     std::shared_ptr<MCP41010> mcp41010;
 };
 
 std::shared_ptr<std::vector<LED>> getLedArray(const std::vector<LedData> &ledData);
+uint8_t getLedNum(std::string ledNm, std::shared_ptr<std::vector<LED>> leds);
