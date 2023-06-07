@@ -3,37 +3,57 @@
 #include <iomanip>
 #include <cmath>
 
-uint32_t displayInterval = 500013; // interval between display updates in us.
+// set displayInterval to 0.5s in us
+uint32_t displayInterval = 500000;
+
 int shuntValue = 0;
 uint8_t k_push_delay = 10; // delay between data point pushes in us
 
-MAX1132 adc(MAX_AQ, ADC_CS_PIN, ADC_RST_PIN, ADC_SSTRB_PIN);
+MAX1132 adc(meas_aq_num, ADC_CS_PIN, ADC_RST_PIN, ADC_SSTRB_PIN);
 elapsedMicros tLast;
-elapsedMicros tLastDisplay;
+// elapsedMicros tLastDisplay;
 MCP41010 dPotLow(POT1_CS_PIN);
 MCP41010 dPotHigh(POT2_CS_PIN);
 
-Adafruit_SSD1306 display(LCD_WIDTH, LCD_HEIGHT, &Wire, LCD_RESET_PIN);
+// Adafruit_SSD1306 display(LCD_WIDTH, LCD_HEIGHT, &Wire, LCD_RESET_PIN);
 
 // Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 
 std::vector<LedData> ledDataVec{
-    {"none", LED_PIN_NONE, POT1_SHUNT_PIN, 0, 0, 0, POT1_CS_PIN},
-    {"520", LED_PIN_520, POT2_SHUNT_PIN, 1000, 300, 750, POT2_CS_PIN},
-    {"545", LED_PIN_545, POT1_SHUNT_PIN, 500, 300, 750, POT1_CS_PIN},
-    {"554", LED_PIN_554, POT1_SHUNT_PIN, 500, 300, 750, POT1_CS_PIN},
-    {"563", LED_PIN_563, POT1_SHUNT_PIN, 500, 300, 750, POT1_CS_PIN},
-    {"572", LED_PIN_572, POT1_SHUNT_PIN, 500, 300, 750, POT1_CS_PIN},
-    {"625", LED_PIN_625, POT2_SHUNT_PIN, 1400, 300, 1400, POT2_CS_PIN},
-    {"740", LED_PIN_740, POT1_SHUNT_PIN, 500, 300, 50, POT1_CS_PIN},
-    {"800", LED_PIN_800, POT1_SHUNT_PIN, 500, 300, 50, POT1_CS_PIN},
-    {"900", LED_PIN_900, POT1_SHUNT_PIN, 500, 300, 50, POT1_CS_PIN},
+    {"none", LED_PIN_NONE, POT1_SHUNT_PIN, 0, 0, 0, POT1_CS_PIN, 0},
+    {"520", LED_PIN_520, POT2_SHUNT_PIN, 1000, 300, 750, POT2_CS_PIN, 255},
+    {"545", LED_PIN_545, POT1_SHUNT_PIN, 500, 300, 750, POT1_CS_PIN, 255},
+    {"554", LED_PIN_554, POT1_SHUNT_PIN, 500, 300, 750, POT1_CS_PIN, 255},
+    {"563", LED_PIN_563, POT1_SHUNT_PIN, 500, 300, 750, POT1_CS_PIN, 255},
+    {"572", LED_PIN_572, POT1_SHUNT_PIN, 500, 300, 750, POT1_CS_PIN, 255},
+    {"625", LED_PIN_625, POT2_SHUNT_PIN, 1400, 300, 1400, POT2_CS_PIN, 255},
+    {"740", LED_PIN_740, POT1_SHUNT_PIN, 500, 300, 50, POT1_CS_PIN, 40},
+    {"800", LED_PIN_800, POT1_SHUNT_PIN, 500, 300, 50, POT1_CS_PIN, 25},
+    {"900", LED_PIN_900, POT1_SHUNT_PIN, 500, 300, 50, POT1_CS_PIN, 25},
 };
 
 std::shared_ptr<std::vector<LED>> leds = getLedArray(ledDataVec);
 int actLedNum = getLedNum("625", leds);
 
 ////////////////////////////////////////////// functions //////////////////////////////////////////////////////////
+void debugPrint(const char *msg)
+{
+    if (DEBUG_MODE == true)
+    {
+        Serial.println(msg);
+    }
+}
+
+void debugPrint(const char *msg, int value)
+{
+    if (DEBUG_MODE == true)
+    {
+        Serial.print(msg);
+        Serial.print(": ");
+        Serial.println(value);
+    }
+}
+
 void executeTrace()
 {
     // set trace variables to initial values
@@ -43,7 +63,6 @@ void executeTrace()
     counter = 0;
     zeroTime = micros();
     pBuffer = &traceData[traceNumber];
-    handleActPhase(tracePhase);
 }
 
 /**
@@ -59,57 +78,68 @@ void handleActPhase(int trace_num)
 
 void setNumPoints(const int value)
 {
-    counter = value + 1;
-    numPoints = value;
-    sendResponse("numPoints", numPoints);
+    if (value > MAX_DATA)
+    {
+        numPoints = MAX_DATA - 1;
+    }
+    else if (value < 0)
+    {
+        numPoints = 1;
+    }
+    else
+    {
+        numPoints = value;
+    }
+    counter = numPoints + 1;
+    debugPrint("numPoints", numPoints);
 }
 
 void setPulseInterval(const int value)
 {
     pulseInterval = value;
-    sendResponse("pulseInterval", pulseInterval);
+    debugPrint("pulseInterval", pulseInterval);
 }
 
 void set_vis_led(const int value)
 {
 
     measLedNum = value;
-    // sendResponse("measLedNum", measLedNum);
+    debugPrint("measLedNum", measLedNum);
 }
 
 void setPulseLength(const int value)
 {
     pulseLength = value;
-    sendResponse("pulseLength", pulseLength);
+    debugPrint("pulseLength", pulseLength);
 }
 
 void set_sat_pulse_end(const int value)
 {
     satPulseEnd = value;
-    sendResponse("satPulseEnd", satPulseEnd);
+    debugPrint("satPulseEnd", satPulseEnd);
 }
 
 void set_sat_pulse_begin(const int value)
 {
     satPulseBegin = value;
-    sendResponse("sat_pulse_begun", satPulseBegin);
+    debugPrint("sat_pulse_begun", satPulseBegin);
 }
 
 void set_phase_act_value(const int value, int phase_num)
 {
     actIntPhase[phase_num] = value;
-    sendResponse("actIntPhase", actIntPhase[phase_num]);
+    debugPrint("actIntPhase", actIntPhase[phase_num]);
 }
 
 int get_numPreAq()
 {
-    int result = MAX_AQ / 3;
+    int result = meas_aq_num / 3;
     return (result);
 }
 
 int get_numAq()
 {
-    int result = MAX_AQ - (MAX_AQ / 3);
+    int result = meas_aq_num - (meas_aq_num / 3);
     return result;
 }
 
@@ -143,6 +173,10 @@ void handle_saturation_pulse(int pulseMode, int tracePhase)
 
 void returnParams()
 {
+    Serial.print("measureState: ");
+    Serial.print(measureState);
+    Serial.print(", counter=");
+    Serial.print(counter);
     Serial.print("testMode: ");
     Serial.print(testMode);
     Serial.print(", meas_led: ");
@@ -153,10 +187,8 @@ void returnParams()
     Serial.print((*leds)[measLedNum].led_pin);
     Serial.print(", intensity: ");
     Serial.print((*leds)[measLedNum].getIntensity());
-    Serial.print(", counter=");
-    Serial.print(counter);
-    Serial.print(", max_aq=");
-    Serial.print(MAX_AQ);
+    Serial.print(", meas_aq_num=");
+    Serial.print(meas_aq_num);
     Serial.print(", powerState=");
     Serial.print(powerState);
     Serial.print(", satPulseBegin=");
@@ -207,26 +239,12 @@ void sendDataPoint(int wrt_cnt, int trace)
         Serial.print(",");
         Serial.print(traceData[0].data[wrt_cnt].time_us[0]);
 
-        for (int i = 0; i < MAX_AQ; i++)
+        for (int i = 0; i < meas_aq_num; i++)
         {
             Serial.print(", ");
             Serial.print(traceData[trace].data[wrt_cnt].aq[i]);
         }
         Serial.println("");
-    }
-}
-
-void sendResponse(auto respcode, auto val)
-{
-    /* send a chararacter array and a value back across serial to acknowledge receipt
-        of the command.
-    */
-    if (DEBUG_MODE == true)
-    {
-        Serial.print(respcode);
-        Serial.print(":");
-        Serial.print(val);
-        Serial.println(";");
     }
 }
 
@@ -240,18 +258,18 @@ void setDebug()
     {
         DEBUG_MODE = false;
     };
-    sendResponse("DEBUG_MODE", DEBUG_MODE);
+    debugPrint("DEBUG_MODE", DEBUG_MODE);
 }
-/** performs a measurement pulse with current variables and returns
- * the shunt value
- */
-int testPulse()
-{
-    zeroTime = micros();
-    tracePhase = 0;
-    pBuffer = &traceData[traceNumber];
-    return measurementPulse(pBuffer, measLedNum);
-}
+// /** performs a measurement pulse with current variables and returns
+//  * the shunt value
+//  */
+// int testPulse()
+// {
+//     zeroTime = micros();
+//     tracePhase = 0;
+//     pBuffer = &traceData[traceNumber];
+//     return measurementPulse(pBuffer, measLedNum);
+// }
 
 /** sets the test mode to the new mode */
 void toggleTestPulser(int value)
@@ -259,10 +277,19 @@ void toggleTestPulser(int value)
     testMode = (value >= 1) ? true : false;
 }
 
-void setLedIntensity(int ledArrayNum, int value)
+/**
+ * @brief sets the designated LED in the led array to a chosen value. Clips
+ * the value to 0-255, then sets the intensity of the LED to that value.
+ * THe led functionality is handled by the led class, which may include further
+ * modification of the value to prevent LED over-driving.
+ */
+void setLedIntensity(const int ledArrayNum, const int value)
 {
-    // check to see if the value is in range
-    (*leds)[ledArrayNum].setIntensity(value, 0);
+    uint8_t clipped_value = static_cast<uint8_t>(value);
+
+    uint8_t ledValue = (*leds)[ledArrayNum].setIntensity(clipped_value, 0);
+    debugPrint("ledValue", ledValue);
+    // Serial.printf("setLedIntensity: ledArrayNum=%d, value=%d, ledValue=%d\n", ledArrayNum, value, ledValue);
 }
 
 /**
@@ -294,6 +321,16 @@ void handleAction()
     case GOT_B:
         break;
     case GOT_C:
+        if (currentValue <= 9 && currentValue >= 0)
+        {
+            meas_aq_num = currentValue;
+        }
+        else
+        {
+            meas_aq_num = 9;
+        }
+        adc.set_acquisition_points(meas_aq_num);
+
         break;
     case GOT_D:
         returnParams();
@@ -463,19 +500,56 @@ void process_inc_byte(const byte c)
     }     // end of not digit
 }
 
-/** @brief Performs ameasurement pulse sequence.
- * @param Tracebuffer* , default is nullptr. If not null, save data to the buffer.
- * @param measLedNum The vector position of the LED object to use
+// int testPulse(TraceBuffer *buffer, int meas_led)
+// {
+//     Point pnt;
+//     static uint32_t ticksLastPrint = 0;
+//     static uint32_t printInterval = 200;
+//     uint32_t tPulse = 0;
+
+//     // take pre-pulse measurements
+//     for (int i = 0; i < adc.m_preaq; i++)
+//     {
+//         pnt.aq[i] = adc.read();
+//     };
+
+//     // time stamp pulse on
+//     pnt.time_us[0] = micros() - zeroTime;
+
+//     (*leds)[meas_led].toggle(HIGH);
+
+//     // take pulse measurements
+//     for (int i = adc.m_preaq; i < adc.m_aq + adc.m_preaq; i++)
+//     {
+//         pnt.aq[i] = adc.read();
+//     }
+
+//     while (tPulse < pulseLength)
+//     {
+//         tPulse = micros() - pnt.time_us[0];
+//     }
+
+//     (*leds)[meas_led].toggle(LOW);
+
+//     // time pulse off
+//     pnt.time_us[1] = micros() - zeroTime;
+
+//     if (buffer != nullptr)
+//     {
+//         buffer->data[counter] = pnt;
+//     }
+
+//     return 0;
+// }
+
+/** @brief Performs measurement pulse sequence.
+ * @param buffer* , default is nullptr. If not null, save data to the buffer.
+ * @param meas_led The vector position of the LED object to use
  * @return shuntVoltage
- *
  */
 int measurementPulse(TraceBuffer *buffer, int meas_led)
 {
     Point pnt;
-    static uint16_t internalCounter;
-
-    // time stamp before prepulse measurements
-    pnt.time_us[0] = micros() - zeroTime;
 
     // take pre-pulse measurements
     for (int i = 0; i < adc.m_preaq; i++)
@@ -483,15 +557,11 @@ int measurementPulse(TraceBuffer *buffer, int meas_led)
         pnt.aq[i] = adc.read();
     };
 
-    // time stamp of LED on
-    pnt.time_us[1] = micros() - zeroTime;
-    (*leds)[meas_led].toggle(HIGH);
+    // time stamp before pre-pulse measurements
+    pnt.time_us[0] = micros() - zeroTime;
 
-    // wait for trigger delay period. between pulse on and measurement
-    while ((micros() - pnt.time_us[1]) < triggerDelay)
-    {
-        delayMicroseconds(5);
-    }
+    // time stamp of LED on
+    (*leds)[meas_led].toggle(HIGH);
 
     // take pulse measurements
     for (int i = adc.m_preaq; i < adc.m_aq + adc.m_preaq; i++)
@@ -499,41 +569,23 @@ int measurementPulse(TraceBuffer *buffer, int meas_led)
         pnt.aq[i] = adc.read();
     }
 
-    pnt.shuntV = (*leds)[meas_led].getShuntVoltage();
+    uint32_t tPulse = micros() - pnt.time_us[0];
 
-    // time since pulse on shuold be > pulseLength
-    uint32_t tPulse = 0;
     while (tPulse < pulseLength)
     {
-        tPulse = micros() - pnt.time_us[1];
-        delayMicroseconds(5);
+        tPulse = micros() - pnt.time_us[0];
     }
 
-    // time stamp of LED off
-    pnt.time_us[2] = micros() - zeroTime;
+    pnt.time_us[1] = micros() - zeroTime;
+
     (*leds)[meas_led].toggle(LOW);
-
-    // serial.print the time stamps, minus the first point
-    if (testMode && internalCounter > 250)
-    {
-        Serial.print("pulse length: ");
-        Serial.print(pnt.time_us[2] - pnt.time_us[1]);
-        Serial.print(", Vshunt: ");
-        Serial.print(pnt.shuntV / 1023.0 * 5.0);
-        Serial.print(", preaq: ");
-        Serial.print(pnt.aq[0]);
-        Serial.print(", aq: ");
-        Serial.println(pnt.aq[1]);
-        internalCounter = 0;
-    }
-    internalCounter++;
 
     if (buffer != nullptr)
     {
         buffer->data[counter] = pnt;
     }
 
-    return pnt.shuntV;
+    return 0;
 }
 
 void cleanupTrace()
@@ -542,37 +594,6 @@ void cleanupTrace()
     {
         led.toggle(LOW);
     }
-
-    measureState = false;
-    tracePhase = 0;
-}
-
-/// @brief display status of various parameters of interest on ssd1306
-void displayStatus()
-{
-    static float shuntVoltage = 0.0;
-    shuntVoltage = shuntValue / 1023.0 * 3.3 * 1000.0;
-
-    std::stringstream ss;
-    ss << "V: " << shuntVoltage;
-    std::string str = ss.str();
-
-    display.clearDisplay();
-    display.setCursor(0, 0);
-    display.setTextSize(2);
-    display.print(str.c_str());
-    display.display();
-}
-
-void init_display()
-{
-    display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
-    display.clearDisplay();
-    display.setTextColor(SSD1306_WHITE);
-    display.setTextSize(2);
-    display.setCursor(0, 0);
-    display.println("Shit is getting real.");
-    display.display();
 }
 
 void setup()
@@ -584,7 +605,6 @@ void setup()
     SPI.begin();
     dPotHigh.begin();
     dPotLow.begin();
-    init_display();
     delay(1000);
 
     counter = numPoints + 1;
@@ -592,45 +612,48 @@ void setup()
 
 void loop()
 {
-    if (!measureState)
-    {
-        if (Serial.available())
-        {
-            process_inc_byte(Serial.read());
-        }
+    if (!measureState && Serial.available())
+        process_inc_byte(Serial.read());
 
-        if (testMode)
+    while (counter <= numPoints)
+    {
+        if (measureState)
         {
             if (tLast > pulseInterval)
             {
-                shuntValue = testPulse();
+                tLast = 0;
+
+                if (counter == 0)
+                {
+                    tracePhase = 0;
+                    handleActPhase(tracePhase);
+                    debugPrint("begin trace");
+                }
+
+                if (counter == satPulseBegin)
+                {
+                    tracePhase = 1;
+                    handleActPhase(tracePhase);
+                    debugPrint("saturation pulse");
+                }
+
+                if (counter == satPulseEnd)
+                {
+                    tracePhase = 2;
+                    handleActPhase(tracePhase);
+                    debugPrint("end saturation pulse");
+                }
+
+                measurementPulse(pBuffer, measLedNum);
+                counter++;
             }
-        }
-        if (tLastDisplay > displayInterval)
-        {
-            displayStatus();
-        }
-    }
 
-    if (counter <= numPoints)
-    {
-
-        if (tLast > pulseInterval)
-        {
-            if ((counter == satPulseBegin) | (counter == satPulseEnd))
+            if (counter > numPoints)
             {
-                tracePhase++;
-                handleActPhase(tracePhase);
+                debugPrint("cleanup");
+                cleanupTrace();
+                measureState = false;
             }
-
-            tLast = 0;
-            measurementPulse(pBuffer, measLedNum);
-            counter++;
         }
-    }
-
-    if (counter > numPoints && measureState == true)
-    {
-        cleanupTrace();
     }
 }

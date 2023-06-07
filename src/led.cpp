@@ -102,10 +102,17 @@ const char *LED::getName()
     return led_name.c_str();
 }
 
+/**
+ * @brief Takes a desired intensity value from zero to max allowed intensity based
+ * on the LED's capabilites. It will scale the value to the max intensity allowed.
+ *
+ * @param mode 0 is pulsed, constant is 1.
+ * @param value 0-255, fraction of max intensity
+ * @return intensity the 0-255 value to give to the MCP41010 digital pot
+ */
 uint8_t LED::setIntensity(const uint8_t value, const uint8_t mode)
 {
-    uint8_t desiredResistance = getResistanceValue(value, mode);
-    m_current_intensity = mcp41010->setValue(desiredResistance);
+    m_current_intensity = mcp41010->setValue(getResistanceValue(value, mode));
     return m_current_intensity;
 };
 
@@ -119,8 +126,19 @@ uint8_t LED::setIntensity(const uint8_t value, const uint8_t mode)
  */
 uint8_t LED::getResistanceValue(const uint8_t value, const uint8_t mode)
 {
-    // not implemented
-    return value;
+    uint8_t clipped_value = static_cast<uint8_t>(value * m_max_intensity / 255);
+
+    // If the value is greater than 0, make sure the returned value is at least 1. This
+    // is for the LEDs with very low max intensity. If we are dividing a max_intensity of
+    // 10 by 255, a significant portion of the range will be 0.
+    if (value > 0 && clipped_value <= 1)
+    {
+        return 1;
+    }
+    else
+    {
+        return clipped_value;
+    }
 }
 
 /**

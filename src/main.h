@@ -2,16 +2,16 @@
 #define _MAIN_H_
 
 #include <Arduino.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-#include <Adafruit_ST7735.h> // Hardware-specific library for ST7735
-#include <map>
-#include <vector>
+// #include <Adafruit_GFX.h>
+// #include <Adafruit_SSD1306.h>
+// #include <Adafruit_ST7735.h> // Hardware-specific library for ST7735
+// #include <map>
+// #include <vector>
 #include <utility>
 #include <max1132.h>
 #include <led.h>
 // #include <mcp23017.h>
-#include <string>
+// #include <string>
 #include <IntervalTimer.h>
 #include <sstream>
 #include <memory>
@@ -22,6 +22,20 @@ enum CURRENT_MODE
     PULSE
 };
 
+const int MAX_DATA = 5000;
+struct Point
+{
+    uint32_t time_us[2]; // begin of measurement, time of pulse turned on, time of pulse turned off
+    uint16_t aq[9];      // analog values
+};
+
+struct TraceBuffer
+{
+    Point data[MAX_DATA]; //
+};
+
+bool act_phase_trigger_state[3] = {false, false, false};
+uint8_t meas_aq_num = 9;
 bool testMode = false; // if test mode is on or off?
 uint32_t zeroTime = 0;
 bool measureState = false; // state for measurements
@@ -29,7 +43,7 @@ int traceNumber = 0;       // the current trace number, index in traceData for c
 int counter = 0;
 int satPulseBegin = 500;
 int satPulseEnd = 600;
-unsigned int pulseLength = 75;     // in uS
+uint32_t pulseLength = 75;         // in uS
 unsigned int pulseInterval = 1000; // in uS, so 1000 is 1ms between measurement pulses
 int pulseMode = 1;                 // 0 just actinic setting, 1 sat pulse, 2 single turnover
 int measLedNum = 0;
@@ -98,8 +112,6 @@ const int ADC_SSTRB_PIN = 30;
 const int GPIO_I2C_ADDR = 0x20;
 const int MAX_INT_VAL = 32768;
 const int INT_SAFETY_VAL = 3276;
-const int MAX_AQ = 5;
-const int MAX_DATA = 1000;
 bool DEBUG_MODE = false; // set this to true to send responses to commands, for debug purposes. Disable before real measurements, as serial output lags the program beyond acceptable time delays.
 
 // LCD module
@@ -139,24 +151,6 @@ typedef enum
     GOT_Z
 } states;
 states state = NONE;
-
-// struc that contains all of our trace variables, to remove global variables as much as possible
-struct TraceParameters
-{
-
-} traceParams;
-
-struct Point
-{
-    uint32_t time_us[3]; // begin of measurement, time of pulse turned on, time of pulse turned off
-    uint16_t aq[MAX_AQ];
-    uint16_t shuntV; // shunt voltage just after aq during pulse
-};
-
-struct TraceBuffer
-{
-    Point data[MAX_DATA]; //
-};
 
 TraceBuffer traceData[1];
 TraceBuffer *pBuffer;

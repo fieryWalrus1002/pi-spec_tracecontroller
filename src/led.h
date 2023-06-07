@@ -21,6 +21,7 @@ struct LedData
     int max_constant_current;
     int max_surge_current;
     int pot_cs_pin;
+    int max_intensity;
 };
 
 /// @brief Class to hold LED implementation details
@@ -36,7 +37,8 @@ public:
                                   max_source_current(ledData.max_source_current),
                                   max_constant_current(ledData.max_constant_current),
                                   max_surge_current(ledData.max_surge_current),
-                                  mcp41010(std::make_shared<MCP41010>(ledData.pot_cs_pin))
+                                  mcp41010(std::make_shared<MCP41010>(ledData.pot_cs_pin)),
+                                  m_max_intensity(ledData.max_intensity)
     {
         pinMode(led_pin, OUTPUT);
         pinMode(shunt_pin, INPUT);
@@ -60,6 +62,7 @@ public:
     uint16_t max_constant_current{0};
     uint16_t max_surge_current{0};
     uint8_t m_current_intensity{0};
+    uint8_t m_max_intensity{0};
 
 private:
     std::shared_ptr<MCP41010> mcp41010;
