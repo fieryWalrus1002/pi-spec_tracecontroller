@@ -129,8 +129,8 @@ void MAX1132::calibrate()
 void MAX1132::set_acquisition_points(uint8_t max_aq)
 {
     m_max_aq = max_aq;
-    m_aq = m_max_aq / 3;
-    m_preaq = m_max_aq - m_aq;
+    m_preaq = m_max_aq / 3;
+    m_aq = m_max_aq - m_preaq;
 }
 
 MAX1132::MAX1132(uint8_t max_aq, uint8_t cs_pin, uint8_t rst_pin, uint8_t sstrb_pin)

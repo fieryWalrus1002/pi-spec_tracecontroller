@@ -54,6 +54,20 @@ void debugPrint(const char *msg, int value)
     }
 }
 
+void debugPrint(const char *msg1, int value1, const char *msg2, int value2)
+{
+    if (DEBUG_MODE == true)
+    {
+        Serial.print(msg1);
+        Serial.print(": ");
+        Serial.print(value1);
+        Serial.print(", ");
+        Serial.print(msg2);
+        Serial.print(": ");
+        Serial.println(value2);
+    }
+}
+
 void executeTrace()
 {
     // set trace variables to initial values
@@ -63,6 +77,8 @@ void executeTrace()
     counter = 0;
     zeroTime = micros();
     pBuffer = &traceData[traceNumber];
+    handleActPhase(tracePhase);
+    debugPrint("begin trace, int: ", actIntPhase[tracePhase]);
 }
 
 /**
@@ -219,33 +235,26 @@ void returnParams()
 
 void pushData(int whichTraceBuffer)
 {
-    for (int i = 0; i <= numPoints; i++)
+    for (int i = 0; i < numPoints; i++)
     {
         sendDataPoint(i, whichTraceBuffer);
         delayMicroseconds(k_push_delay);
     }
+    Serial.println(";");
 }
 
 void sendDataPoint(int wrt_cnt, int trace)
 {
+    Serial.print(wrt_cnt);
+    Serial.print(",");
+    Serial.print(traceData[0].data[wrt_cnt].time_us[0]);
 
-    if (wrt_cnt >= numPoints)
+    for (int i = 0; i < meas_aq_num; i++)
     {
-        Serial.println(";");
+        Serial.print(", ");
+        Serial.print(traceData[trace].data[wrt_cnt].aq[i]);
     }
-    else
-    {
-        Serial.print(wrt_cnt);
-        Serial.print(",");
-        Serial.print(traceData[0].data[wrt_cnt].time_us[0]);
-
-        for (int i = 0; i < meas_aq_num; i++)
-        {
-            Serial.print(", ");
-            Serial.print(traceData[trace].data[wrt_cnt].aq[i]);
-        }
-        Serial.println("");
-    }
+    Serial.println("");
 }
 
 void setDebug()
@@ -288,7 +297,6 @@ void setLedIntensity(const int ledArrayNum, const int value)
     uint8_t clipped_value = static_cast<uint8_t>(value);
 
     uint8_t ledValue = (*leds)[ledArrayNum].setIntensity(clipped_value, 0);
-    debugPrint("ledValue", ledValue);
     // Serial.printf("setLedIntensity: ledArrayNum=%d, value=%d, ledValue=%d\n", ledArrayNum, value, ledValue);
 }
 
@@ -319,6 +327,7 @@ void handleAction()
         toggleTestPulser(currentValue);
         break;
     case GOT_B:
+        calibrateTriggerDelay(currentValue);
         break;
     case GOT_C:
         if (currentValue <= 9 && currentValue >= 0)
@@ -545,11 +554,14 @@ void process_inc_byte(const byte c)
 /** @brief Performs measurement pulse sequence.
  * @param buffer* , default is nullptr. If not null, save data to the buffer.
  * @param meas_led The vector position of the LED object to use
- * @return shuntVoltage
+ * @return the measurement Point object
  */
-int measurementPulse(TraceBuffer *buffer, int meas_led)
+Point measurementPulse(TraceBuffer *buffer, int meas_led)
 {
     Point pnt;
+    uint32_t tPulse{0};
+    u_int32_t pulseOn{0};
+    uint32_t delayTime{0};
 
     // take pre-pulse measurements
     for (int i = 0; i < adc.m_preaq; i++)
@@ -560,16 +572,24 @@ int measurementPulse(TraceBuffer *buffer, int meas_led)
     // time stamp before pre-pulse measurements
     pnt.time_us[0] = micros() - zeroTime;
 
+    // time stamp of LED turning on within the measurement pulse
+    pulseOn = micros();
+
     // time stamp of LED on
     (*leds)[meas_led].toggle(HIGH);
+
+    // delay for trigger delay
+    while (delayTime < triggerDelay)
+    {
+        delayTime = micros() - pulseOn; // diff is microseconds since LED turned on
+        delayMicroseconds(1);
+    }
 
     // take pulse measurements
     for (int i = adc.m_preaq; i < adc.m_aq + adc.m_preaq; i++)
     {
         pnt.aq[i] = adc.read();
     }
-
-    uint32_t tPulse = micros() - pnt.time_us[0];
 
     while (tPulse < pulseLength)
     {
@@ -585,7 +605,7 @@ int measurementPulse(TraceBuffer *buffer, int meas_led)
         buffer->data[counter] = pnt;
     }
 
-    return 0;
+    return pnt;
 }
 
 void cleanupTrace()
@@ -594,6 +614,37 @@ void cleanupTrace()
     {
         led.toggle(LOW);
     }
+}
+
+void calibrateTriggerDelay(int howMany = 10)
+{
+    // set trigger delay to 0, and pulseLength to 100
+    triggerDelay = 0;
+    Point points[howMany];
+
+    // take howMany measurement pulses, incrementing triggerDelay
+    for (int i = 0; i < howMany; i++)
+    {
+        points[i] = measurementPulse(nullptr, measLedNum);
+        delay(1);
+        triggerDelay += 1;
+    }
+
+    // now send the data to the computer
+    for (int i = 0; i < howMany; i++)
+    {
+        Serial.print(i);
+        Serial.print(",");
+        Serial.print(points[i].time_us[0]);
+
+        for (int j = 0; j < adc.m_preaq + adc.m_aq; j++)
+        {
+            Serial.print(", ");
+            Serial.print(points[i].aq[j]);
+        }
+        Serial.println("");
+    }
+    Serial.println(";");
 }
 
 void setup()
@@ -623,25 +674,11 @@ void loop()
             {
                 tLast = 0;
 
-                if (counter == 0)
+                if ((counter == satPulseBegin) | (counter == satPulseEnd))
                 {
-                    tracePhase = 0;
+                    tracePhase++;
+                    debugPrint("counter: ", counter, ", tracePhase: ", tracePhase);
                     handleActPhase(tracePhase);
-                    debugPrint("begin trace");
-                }
-
-                if (counter == satPulseBegin)
-                {
-                    tracePhase = 1;
-                    handleActPhase(tracePhase);
-                    debugPrint("saturation pulse");
-                }
-
-                if (counter == satPulseEnd)
-                {
-                    tracePhase = 2;
-                    handleActPhase(tracePhase);
-                    debugPrint("end saturation pulse");
                 }
 
                 measurementPulse(pBuffer, measLedNum);

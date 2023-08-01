@@ -15,6 +15,7 @@
 #include <IntervalTimer.h>
 #include <sstream>
 #include <memory>
+#include <string>
 
 enum CURRENT_MODE
 {
@@ -41,18 +42,18 @@ uint32_t zeroTime = 0;
 bool measureState = false; // state for measurements
 int traceNumber = 0;       // the current trace number, index in traceData for current trace data to be placed
 int counter = 0;
-int satPulseBegin = 500;
-int satPulseEnd = 600;
-uint32_t pulseLength = 75;         // in uS
+int satPulseBegin = 200;
+int satPulseEnd = 300;
+uint32_t pulseLength = 33;         // in uS
 unsigned int pulseInterval = 1000; // in uS, so 1000 is 1ms between measurement pulses
 int pulseMode = 1;                 // 0 just actinic setting, 1 sat pulse, 2 single turnover
 int measLedNum = 0;
 uint8_t actinicIntensity = 0;
-int numPoints = 100;
+int numPoints = 700;
 uint32_t triggerDelay = 0;
 bool powerState = false; // status of the power switch
 int tracePhase = 0;
-uint8_t actIntPhase[] = {0, 0, 0}; // holds the actinic intensity values for phases 0-2 in 0-255 values
+uint8_t actIntPhase[] = {0, 250, 0}; // holds the actinic intensity values for phases 0-2 in 0-255 values
 int currentValue;
 
 /**
@@ -166,7 +167,8 @@ void letThereBeLight(int);
 // void testMeasLedPins(int);
 void handleActPhase(int);
 int testPulse();
-int measurementPulse(TraceBuffer *, int);
+Point measurementPulse(TraceBuffer *, int);
 void setLedIntensity(int, int);
 void setActinicIntensity(int, int);
+void calibrateTriggerDelay(int);
 #endif

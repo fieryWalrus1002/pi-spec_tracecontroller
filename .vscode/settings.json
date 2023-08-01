@@ -1,0 +1,13 @@
+{
+    "cSpell.words": [
+        "GPIO",
+        "microcontroller",
+        "MOSI",
+        "MSBFIRST",
+        "preaq"
+    ],
+    "docwriter.progress.trackFunctions": false,
+    "docwriter.progress.trackClasses": true,
+    "docwriter.progress.trackMethods": true,
+    "docwriter.progress.trackTypes": true
+}

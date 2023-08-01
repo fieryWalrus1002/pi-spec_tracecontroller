@@ -4,3 +4,4 @@
 3. Change the pin numbers in pin.h
 4. Change the pin numbers in max1132.cpp
 5. Do we need to use a voltage divider to measure the current? Probably yes, as the voltage will be from 0-10v.
+h
