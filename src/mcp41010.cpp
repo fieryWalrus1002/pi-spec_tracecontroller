@@ -6,7 +6,7 @@ void MCP41010::begin()
     // m_pcf8575.pinMode(m_cs_pin, OUTPUT);
     // m_pcf8575.digitalWrite(m_cs_pin, HIGH);
     pinMode(m_cs_pin, OUTPUT);
-    digitalWrite(m_cs_pin, HIGH);
+    csToggle(HIGH);
     setValue(0);
 }
 
@@ -18,15 +18,12 @@ uint8_t MCP41010::getValue()
 
 uint8_t MCP41010::setValue(uint8_t value)
 {
-    // set the value of the potentiometer
-    // also returns the value set
-    // and sets the m_value variable to equal value
-    SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
-    digitalWrite(m_cs_pin, LOW);
+    // SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
+    csToggle(LOW);
     SPI.transfer(m_command_byte);
     SPI.transfer(value);
-    digitalWrite(m_cs_pin, HIGH);
-    SPI.endTransaction();
+    csToggle(HIGH);
+    // SPI.endTransaction();
 
     m_value = value;
 

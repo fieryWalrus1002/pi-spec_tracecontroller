@@ -22,6 +22,7 @@ struct LedData
     int max_surge_current;
     int pot_cs_pin;
     int max_intensity;
+    int load_resistor;
 };
 
 /// @brief Class to hold LED implementation details
@@ -32,17 +33,20 @@ class LED
 {
 public:
     LED(const LedData &ledData) : led_name(ledData.led_name),
-                                  led_pin(ledData.led_pin),
-                                  shunt_pin(ledData.shunt_pin),
-                                  max_source_current(ledData.max_source_current),
-                                  max_constant_current(ledData.max_constant_current),
-                                  max_surge_current(ledData.max_surge_current),
-                                  mcp41010(std::make_shared<MCP41010>(ledData.pot_cs_pin)),
-                                  m_max_intensity(ledData.max_intensity)
-    {
-        pinMode(led_pin, OUTPUT);
-        pinMode(shunt_pin, INPUT);
-    };
+                              led_pin(ledData.led_pin),
+                              shunt_pin(ledData.shunt_pin),
+                              max_source_current(ledData.max_source_current),
+                              max_constant_current(ledData.max_constant_current),
+                              max_surge_current(ledData.max_surge_current),
+                              m_current_intensity(0),
+                              m_max_intensity(ledData.max_intensity),
+                              m_load_resistor(ledData.load_resistor),
+                              mcp41010(std::make_shared<MCP41010>(ledData.pot_cs_pin))
+{
+    pinMode(led_pin, OUTPUT);
+    pinMode(shunt_pin, INPUT);
+};
+
 
     void toggle(bool state);
     void calibrateIntensity(uint8_t value);
@@ -51,10 +55,10 @@ public:
     const char *getName();
     uint8_t getIntensity() { return m_current_intensity; };
     const char *ledPinToString();
-    int getShuntVoltage();
+    float getShuntVoltage();
+    int getShuntPin();
     void turnOn();
     void turnOff();
-
     std::string led_name{"_"};
     uint8_t led_pin{0};
     uint8_t shunt_pin{0};
@@ -63,6 +67,8 @@ public:
     uint16_t max_surge_current{0};
     uint8_t m_current_intensity{0};
     uint8_t m_max_intensity{0};
+    int m_load_resistor{0};
+    void begin();
 
 private:
     std::shared_ptr<MCP41010> mcp41010;

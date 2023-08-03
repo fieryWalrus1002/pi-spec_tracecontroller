@@ -16,6 +16,7 @@
 #include <sstream>
 #include <memory>
 #include <string>
+#include <util.h>
 
 enum CURRENT_MODE
 {
@@ -76,7 +77,7 @@ int currentValue;
  *                3.3V |     | GND
  * POT1_SHUNT_PIN   24 |     | 41   POT1_CS_PIN
  * POT2_SHUNT_PIN   25 |     | 40   POT2_CS_PIN
- *                  26 |     | 39
+ * POT3_SHUNT_PIN   26 |     | 39   POT3_CS_PIN
  *                  27 |     | 38
  * ADC_CS_PIN       28 |     | 37
  * ADC_RST_PIN      29 |     | 36
@@ -98,11 +99,13 @@ const int LED_PIN_900 = 22;
 const int LED_PIN_625 = 34;
 
 // Potentiometer Pins
-// Pot1 is low current, pot2 is high current
+// Pot1 is low current, pot2 is high current, pot 3 is IR LED current
 const int POT1_SHUNT_PIN = 24;
 const int POT1_CS_PIN = 41;
 const int POT2_SHUNT_PIN = 25;
 const int POT2_CS_PIN = 40;
+const int POT3_CS_PIN = 39;
+const int POT3_SHUNT_PIN = 26;
 
 // MAX1132 16bit ADC
 const int ADC_CS_PIN = 28;
@@ -113,7 +116,6 @@ const int ADC_SSTRB_PIN = 30;
 const int GPIO_I2C_ADDR = 0x20;
 const int MAX_INT_VAL = 32768;
 const int INT_SAFETY_VAL = 3276;
-bool DEBUG_MODE = false; // set this to true to send responses to commands, for debug purposes. Disable before real measurements, as serial output lags the program beyond acceptable time delays.
 
 // LCD module
 const int LCD_I2C_ADDR = 0x3C;

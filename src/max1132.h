@@ -34,9 +34,9 @@ private:
 
     int m_max_aq;
     const byte m_calbyte = 0xC8;       // calibration control byte
-    const byte m_readbyte_long = 0xD8; // acquire unipolar in long acquistion mode (~150 ksps with ext clock) 216
+    const byte m_readbyte_long = 0xD8; // acquire unipolar in long acquisition mode (~150 ksps with ext clock) 216
     /// convert int 192 to hexidecimal 0xC0
-    const byte m_readbyte_short = 0xC0;                              // acquire unipolar in short acquistion mode, 192
+    const byte m_readbyte_short = 0xC0;                              // acquire unipolar in short acquisition mode, 192
     const byte m_transfer_byte = 0x00;                               // dummy byte to send to adc to get data
     SPISettings adcSettings = SPISettings(1e6, MSBFIRST, SPI_MODE0); // 1MHz clock, MSB first, SPI mode 0
 };

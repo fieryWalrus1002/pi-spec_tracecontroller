@@ -22,7 +22,7 @@
 
 ///
 
-//* MCP41010 digital potentiometerb
+//* MCP41010 digital potentiometer
 // 8-bit digital potentiometer
 // 0-255 resistance values
 // 0x11 command byte
@@ -41,11 +41,9 @@ public:
     uint8_t setValue(uint8_t value);
     uint8_t getValue();
     void begin();
-
-private:
-    uint8_t m_cs_pin;
-    uint8_t m_value;
     void csToggle(bool state);
+    uint8_t m_cs_pin;
+    uint8_t m_value;    
     static const uint8_t m_command_byte{0x11};
     // PCF8575 &m_pcf8575;
 };

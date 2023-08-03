@@ -3,7 +3,7 @@
  Created by: 2023-02-27 by Magnus Wood
  ------------------------------------------------------------------------------
  A library to set the intensity of an LED, based on the max value given for the LED.
- THe vlaue is used to calculate the needed current, and the current is set using a
+ The value is used to calculate the needed current, and the current is set using a
  MCP41010 digital potentiometer.
 
 ------------------------------------------------------------------------------
@@ -17,14 +17,14 @@
 
 ------------------------------------------------------------------------------
  Chip Wiring
- All connections necessary unless specifically mentionned.
+ All connections necessary unless specifically mentioned.
 
  PIN Name Description
  1 - CS - Chip select. Drive CS LOW to enable serial interface.
  2 - SCLK - Serial data clock input.
  3 - MOSI - Serial data input. Data latched on rising edge of SCLK.
     4 - Vss - Ground
-    5 - PA0 - Potiometer terminal .Code 00h brings wiper close to PA0.
+    5 - PA0 - Potentiometer terminal .Code 00h brings wiper close to PA0.
     6 - PW0 - Potentiometer wiper.
     7 - PB0 - Potentiometer terminal B. Higher code brings wiper closer to B.
     8 - Vdd - 5V supply.
@@ -68,6 +68,15 @@ The command byte to write to the potentiometer is 0b00010001.
 //     // m_pcf8575.pinMode(m_led_pin, OUTPUT);
 //     // m_pcf8575.digitalWrite(m_led_pin, LOW);
 // }
+
+
+/** 
+ * @brief initialize the MCP41010 digital potentiometer once SPI has been initialized.
+*/
+void LED::begin(){    
+
+    mcp41010->begin();
+}
 
 void LED::calibrateIntensity(uint8_t value)
 {
@@ -152,14 +161,25 @@ const char *LED::ledPinToString()
 }
 
 /**
- * @brief takes a reference to an LED object and then calls an analogRead
- * on the shunt_pin associated with that LED object. Returns the int value
- * it gets from the microcontroller ADC
+ * @brief returns the voltage on the shunt resistor
  */
-int LED::getShuntVoltage()
+float LED::getShuntVoltage()
 {
-    return analogRead(shunt_pin);
+    int value = analogRead(shunt_pin);
+    float voltage = (value * m_load_resistor) / 1023.0 * 3.3;
+    return voltage;
+    
 };
+
+/** 
+ * @brief returns shunt pin
+ * 
+*/
+int LED::getShuntPin()
+{
+    return shunt_pin;
+};
+
 
 /**
  * @brief instantiates a vector of LED objects from an array of LedData defined in main.h
@@ -179,7 +199,7 @@ std::shared_ptr<std::vector<LED>> getLedArray(const std::vector<LedData> &ledDat
 }
 
 /**
- * @brief Take a string in the form of "625" representing the wavelenght of an LED. Find the
+ * @brief Take a string in the form of "625" representing the wavelength of an LED. Find the
  * corresponding LED in the vector of LED objects and return the index of that LED in the vector.
  * @return uint8_t index of the LED in the vector if present, else 0
  */

@@ -5,7 +5,7 @@
 
 // set displayInterval to 0.5s in us
 uint32_t displayInterval = 500000;
-
+bool woops = false;
 int shuntValue = 0;
 uint8_t k_push_delay = 10; // delay between data point pushes in us
 
@@ -13,60 +13,32 @@ MAX1132 adc(meas_aq_num, ADC_CS_PIN, ADC_RST_PIN, ADC_SSTRB_PIN);
 elapsedMicros tLast;
 // elapsedMicros tLastDisplay;
 MCP41010 dPotLow(POT1_CS_PIN);
-MCP41010 dPotHigh(POT2_CS_PIN);
+MCP41010 dPotMid(POT2_CS_PIN);
+MCP41010 dPotHigh(POT3_CS_PIN);
 
 // Adafruit_SSD1306 display(LCD_WIDTH, LCD_HEIGHT, &Wire, LCD_RESET_PIN);
 
 // Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 
+// LED(led_name, led_pin, shunt_pin, max_source_current, max_constant_current, max_surge_current, pot_cs_pin, max_intensity)
 std::vector<LedData> ledDataVec{
-    {"none", LED_PIN_NONE, POT1_SHUNT_PIN, 0, 0, 0, POT1_CS_PIN, 0},
-    {"520", LED_PIN_520, POT2_SHUNT_PIN, 1000, 300, 750, POT2_CS_PIN, 255},
-    {"545", LED_PIN_545, POT1_SHUNT_PIN, 500, 300, 750, POT1_CS_PIN, 255},
-    {"554", LED_PIN_554, POT1_SHUNT_PIN, 500, 300, 750, POT1_CS_PIN, 255},
-    {"563", LED_PIN_563, POT1_SHUNT_PIN, 500, 300, 750, POT1_CS_PIN, 255},
-    {"572", LED_PIN_572, POT1_SHUNT_PIN, 500, 300, 750, POT1_CS_PIN, 255},
-    {"625", LED_PIN_625, POT2_SHUNT_PIN, 1400, 300, 1400, POT2_CS_PIN, 255},
-    {"740", LED_PIN_740, POT1_SHUNT_PIN, 500, 300, 50, POT1_CS_PIN, 40},
-    {"800", LED_PIN_800, POT1_SHUNT_PIN, 500, 300, 50, POT1_CS_PIN, 25},
-    {"900", LED_PIN_900, POT1_SHUNT_PIN, 500, 300, 50, POT1_CS_PIN, 25},
+    {"none", LED_PIN_NONE, POT1_SHUNT_PIN, 0, 0, 0, POT1_CS_PIN, 0, 1},
+    {"520", LED_PIN_520, POT2_SHUNT_PIN, 1000, 300, 750, POT3_CS_PIN, 255, 1},
+    {"545", LED_PIN_545, POT1_SHUNT_PIN, 500, 300, 750, POT1_CS_PIN, 255, 1},
+    {"554", LED_PIN_554, POT1_SHUNT_PIN, 500, 300, 750, POT1_CS_PIN, 255, 1},
+    {"563", LED_PIN_563, POT1_SHUNT_PIN, 500, 300, 750, POT1_CS_PIN, 255, 1},
+    {"572", LED_PIN_572, POT1_SHUNT_PIN, 500, 300, 750, POT1_CS_PIN, 255, 1},
+    {"625", LED_PIN_625, POT2_SHUNT_PIN, 1400, 300, 1400, POT3_CS_PIN, 255, 1},
+    {"740", LED_PIN_740, POT1_SHUNT_PIN, 500, 300, 1000, POT2_CS_PIN, 255, 10},
+    {"800", LED_PIN_800, POT1_SHUNT_PIN, 500, 300, 1000, POT2_CS_PIN, 255, 10},
+    {"900", LED_PIN_900, POT1_SHUNT_PIN, 500, 300, 1000, POT2_CS_PIN, 255, 10},
 };
 
 std::shared_ptr<std::vector<LED>> leds = getLedArray(ledDataVec);
 int actLedNum = getLedNum("625", leds);
 
 ////////////////////////////////////////////// functions //////////////////////////////////////////////////////////
-void debugPrint(const char *msg)
-{
-    if (DEBUG_MODE == true)
-    {
-        Serial.println(msg);
-    }
-}
 
-void debugPrint(const char *msg, int value)
-{
-    if (DEBUG_MODE == true)
-    {
-        Serial.print(msg);
-        Serial.print(": ");
-        Serial.println(value);
-    }
-}
-
-void debugPrint(const char *msg1, int value1, const char *msg2, int value2)
-{
-    if (DEBUG_MODE == true)
-    {
-        Serial.print(msg1);
-        Serial.print(": ");
-        Serial.print(value1);
-        Serial.print(", ");
-        Serial.print(msg2);
-        Serial.print(": ");
-        Serial.println(value2);
-    }
-}
 
 void executeTrace()
 {
@@ -295,9 +267,8 @@ void toggleTestPulser(int value)
 void setLedIntensity(const int ledArrayNum, const int value)
 {
     uint8_t clipped_value = static_cast<uint8_t>(value);
-
     uint8_t ledValue = (*leds)[ledArrayNum].setIntensity(clipped_value, 0);
-    // Serial.printf("setLedIntensity: ledArrayNum=%d, value=%d, ledValue=%d\n", ledArrayNum, value, ledValue);
+    Serial.printf("setLedIntensity: ledArrayNum=%d, clipped_value=%d, value=%d, ledValue=%d\n", ledArrayNum, clipped_value, value, ledValue);
 }
 
 /**
@@ -649,22 +620,75 @@ void calibrateTriggerDelay(int howMany = 10)
 
 void setup()
 {
-    pinMode(POT1_SHUNT_PIN, INPUT);
-    pinMode(POT2_SHUNT_PIN, INPUT);
-
     Serial.begin(115200);
     SPI.begin();
-    dPotHigh.begin();
-    dPotLow.begin();
+
+    for (auto led : *leds)
+    {
+        led.begin();
+    }
+
     delay(1000);
 
     counter = numPoints + 1;
+    set_vis_led(8);
 }
+
+
+
+// create a vector to hold the data
+std::vector<float> data;
+float voltage = 0;
+int jMax = 1;
+int iMax = 256;
+int iMin = 0;
+
+int usDelay = 100;
 
 void loop()
 {
     if (!measureState && Serial.available())
         process_inc_byte(Serial.read());
+    
+
+
+
+    
+    for (int i = iMin; i < iMax; i++)
+    {
+        (*leds)[measLedNum].setIntensity(i, 0);
+
+        
+        for (int j = 0; j < jMax; j++)
+        {
+                digitalWrite(23, HIGH);
+                delayMicroseconds(usDelay);
+                voltage = (*leds)[measLedNum].getShuntVoltage();
+                digitalWrite(23, LOW);
+                delayMicroseconds(usDelay);
+        }
+        
+        data.push_back(voltage);
+        
+    }
+        
+    
+    
+    Serial.print("i, voltage\n");
+    // print out the data to serial
+    for (int i = 0; i < data.size(); i++)
+    {
+        Serial.print(i);
+        Serial.print(",");
+        Serial.println(data[i]);
+    }
+
+    Serial.print("led shunt pin: ");
+    Serial.println((*leds)[measLedNum].getShuntPin());
+    Serial.println(";");
+    data.clear();
+    delay(1000);
+
 
     while (counter <= numPoints)
     {

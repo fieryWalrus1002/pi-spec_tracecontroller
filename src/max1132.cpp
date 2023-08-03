@@ -7,7 +7,7 @@
 
  ------------------------------------------------------------------------------
  Chip Wiring
- All connections necessary unless specifically mentionned.
+ All connections necessary unless specifically mentioned.
 
  PIN Name Description
  1 - REF - ADC ref input. Bypass to AGND with 0.22 uF.
@@ -68,7 +68,7 @@ M1/M0
 example:
 const byte CALBYTE = 0xC8;// calibration control byte
 
-calbye, 200U
+calbyte, 200U
 11001000
 7=1, control bit
 6=1, unipolar
@@ -142,7 +142,7 @@ MAX1132::MAX1132(uint8_t max_aq, uint8_t cs_pin, uint8_t rst_pin, uint8_t sstrb_
     set_acquisition_points(max_aq);
     init_pins(); // set pins to appropriate modes and values
     calibrate(); // send the calibration byte
-    // send the device the acquistion command byte for unipolar conversion long
+    // send the device the acquisition command byte for unipolar conversion long
 }
 
 uint16_t MAX1132::read()
