@@ -56,6 +56,16 @@ bool powerState = false; // status of the power switch
 int tracePhase = 0;
 uint8_t actIntPhase[] = {0, 250, 0}; // holds the actinic intensity values for phases 0-2 in 0-255 values
 int currentValue;
+uint32_t displayInterval = 500000;
+bool woops = false;
+int shuntValue = 0;
+uint8_t k_push_delay = 10; // delay between data point pushes in us
+
+
+
+
+
+
 
 /**
  * 5-4-23 Teensy 4.1 pin diagram
@@ -63,49 +73,49 @@ int currentValue;
  *                 GND +-----+  5V
  * LED_PIN_NONE      0 |     | GND
  *                   1 |     | 3.3V
- *                   2 |     | 23   LED_PIN_800
- *                   3 |     | 22   LED_PIN_900
- *                   4 |     | 21   LED_PIN_740
- *                   5 |     | 20   LED_PIN_545
- *                   6 |     | 19   SCL
- *                   7 |     | 18   SDA
- *                   8 |     | 17   LED_PIN_554
- *                   9 |     | 16   LED_PIN_563
- *                  10 |     | 15   LED_PIN_572
+ *                   2 |     | 23   LED_PIN_900 -> ULN2003APG A1
+ *                   3 |     | 22   LED_PIN_800 -> ULN2003APG A2
+ *                   4 |     | 21   LED_PIN_740 -> ULN2003APG A3
+ *                   5 |     | 20   LED_PIN_572 -> ULN2003APG A4
+ *                   6 |     | 19   LED_PIN_563 -> ULN2003APG A5
+ *                   7 |     | 18   LED_PIN_554 -> ULN2003APG A6
+ *                   8 |     | 17   LED_PIN_545 -> ULN2003APG A7
+ *                   9 |     | 16   LED_PIN_520 -> ULN2003APG A8
+ *                  10 |     | 15   
  * MOSI             11 |     | 14
  * MISO             12 |     | 13   SCK
  *                3.3V |     | GND
- * POT1_SHUNT_PIN   24 |     | 41   POT1_CS_PIN
- * POT2_SHUNT_PIN   25 |     | 40   POT2_CS_PIN
- * POT3_SHUNT_PIN   26 |     | 39   POT3_CS_PIN
- *                  27 |     | 38
- * ADC_CS_PIN       28 |     | 37
- * ADC_RST_PIN      29 |     | 36
- * ADC_SSTRB_PIN    30 |     | 35   LED_PIN_520
- *                  31 |     | 34   LED_PIN_625
- *                  32 +-----+ 33
+ *                  24 |     | 41   LED_PIN_625 -> ULN2003APG B1
+ *                  25 |     | 40   
+ *                  26 |     | 39
+ *                  27 |     | 38   POT3_SHUNT_PIN
+ * ADC_CS_PIN       28 |     | 37   POT3_CS_PIN
+ * ADC_RST_PIN      29 |     | 36   POT2_SHUNT_PIN
+ * ADC_SSTRB_PIN    30 |     | 35   POT2_CS_PIN
+ *                  31 |     | 34   POT1_SHUNT_PIN
+ *                  32 +-----+ 33   POT1_CS_PIN
  */
 
 // led pins
 const int LED_PIN_NONE = 0;
-const int LED_PIN_520 = 35;
-const int LED_PIN_545 = 20;
-const int LED_PIN_554 = 17;
-const int LED_PIN_563 = 16;
-const int LED_PIN_572 = 15;
+const int LED_PIN_520 = 16;
+const int LED_PIN_545 = 17;
+const int LED_PIN_554 = 18;
+const int LED_PIN_563 = 19;
+const int LED_PIN_572 = 20;
 const int LED_PIN_740 = 21;
-const int LED_PIN_800 = 23;
-const int LED_PIN_900 = 22;
-const int LED_PIN_625 = 34;
+const int LED_PIN_800 = 22;
+const int LED_PIN_900 = 23;
+const int LED_PIN_625 = 41;
 
 // Potentiometer Pins
 // Pot1 is low current, pot2 is high current, pot 3 is IR LED current
-const int POT1_SHUNT_PIN = 24;
-const int POT1_CS_PIN = 41;
-const int POT2_SHUNT_PIN = 25;
-const int POT2_CS_PIN = 40;
-const int POT3_CS_PIN = 39;
-const int POT3_SHUNT_PIN = 26;
+const int POT1_SHUNT_PIN = 34;
+const int POT1_CS_PIN = 33;
+const int POT2_SHUNT_PIN = 36;
+const int POT2_CS_PIN = 35;
+const int POT3_SHUNT_PIN = 38;
+const int POT3_CS_PIN = 37;
 
 // MAX1132 16bit ADC
 const int ADC_CS_PIN = 28;
